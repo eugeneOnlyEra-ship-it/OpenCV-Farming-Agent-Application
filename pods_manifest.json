@@ -1,0 +1,1454 @@
+[
+  {
+    "pod_id": "R1-L-F1",
+    "rail": 1,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R1-L-F1_S2_3.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S2_3",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S2_3",
+        "image": "traj_cabbage_R1-L-F1_S2_3.jpg"
+      },
+      {
+        "growth_stage": "S4_5",
+        "image": "traj_cabbage_R1-L-F1_S4_5.jpg"
+      },
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R1-L-F1_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R1-L-F1_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R1-L-F1_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-L-F2",
+    "rail": 1,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R1-L-F2_S4_5.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S4_5",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S4_5",
+        "image": "traj_cabbage_R1-L-F2_S4_5.jpg"
+      },
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R1-L-F2_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R1-L-F2_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R1-L-F2_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-L-F3",
+    "rail": 1,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R1-L-F3_S6_7.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S6_7",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R1-L-F3_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R1-L-F3_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R1-L-F3_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-L-F4",
+    "rail": 1,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R1-L-F4_S8.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S8",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R1-L-F4_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R1-L-F4_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-L-B1",
+    "rail": 1,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Healthy_R1-L-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R1-L-B2",
+    "rail": 1,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Alternaria_leaf_spot_R1-L-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Alternaria_leaf_spot"
+    }
+  },
+  {
+    "pod_id": "R1-L-B3",
+    "rail": 1,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Bacterial_leaf_spot_R1-L-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Bacterial_leaf_spot"
+    }
+  },
+  {
+    "pod_id": "R1-L-B4",
+    "rail": 1,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Black_rot_R1-L-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Black_rot"
+    }
+  },
+  {
+    "pod_id": "R1-M-F1",
+    "rail": 1,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R1-M-F1_Stage_01__Early_Growth.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Stage 01- Early Growth",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Stage 01- Early Growth",
+        "image": "traj_lettuce_R1-M-F1_Stage_01__Early_Growth.jpg"
+      },
+      {
+        "growth_stage": "stage 02- Leafy growth",
+        "image": "traj_lettuce_R1-M-F1_stage_02__Leafy_growth.jpg"
+      },
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R1-M-F1_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R1-M-F1_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-M-F2",
+    "rail": 1,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R1-M-F2_stage_02__Leafy_growth.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 02- Leafy growth",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 02- Leafy growth",
+        "image": "traj_lettuce_R1-M-F2_stage_02__Leafy_growth.jpg"
+      },
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R1-M-F2_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R1-M-F2_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-M-F3",
+    "rail": 1,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R1-M-F3_stage_03__Head_formation.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 03- Head formation",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R1-M-F3_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R1-M-F3_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-M-F4",
+    "rail": 1,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R1-M-F4_stage_04__Harvest_stage.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 04- Harvest stage",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R1-M-F4_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-M-B1",
+    "rail": 1,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_healthy_R1-M-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R1-M-B2",
+    "rail": 1,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Bacterial_R1-M-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Bacterial"
+    }
+  },
+  {
+    "pod_id": "R1-M-B3",
+    "rail": 1,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Downy_mildew_on_lettuce_R1-M-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Downy_mildew_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R1-M-B4",
+    "rail": 1,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Powdery_mildew_on_lettuce_R1-M-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Powdery_mildew_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R1-R-F1",
+    "rail": 1,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R1-R-F1_Harvest.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Harvest",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R1-R-F1_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-R-F2",
+    "rail": 1,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R1-R-F2_Intermediate.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Intermediate",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R1-R-F2_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R1-R-F2_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-R-F3",
+    "rail": 1,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R1-R-F3_Juvenile.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Juvenile",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Juvenile",
+        "image": "traj_mushroom_R1-R-F3_Juvenile.jpg"
+      },
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R1-R-F3_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R1-R-F3_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-R-F4",
+    "rail": 1,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R1-R-F4_Harvest.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Harvest",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R1-R-F4_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R1-R-B1",
+    "rail": 1,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Healthy_R1-R-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R1-R-B2",
+    "rail": 1,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Bacterial_Blotch_R1-R-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Bacterial Blotch"
+    }
+  },
+  {
+    "pod_id": "R1-R-B3",
+    "rail": 1,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Dry_Bubble_R1-R-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Dry Bubble"
+    }
+  },
+  {
+    "pod_id": "R1-R-B4",
+    "rail": 1,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Trichoderma_R1-R-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Trichoderma"
+    }
+  },
+  {
+    "pod_id": "R2-L-F1",
+    "rail": 2,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R2-L-F1_S9.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S9",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R2-L-F1_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-L-F2",
+    "rail": 2,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R2-L-F2_S2_3.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S2_3",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S2_3",
+        "image": "traj_cabbage_R2-L-F2_S2_3.jpg"
+      },
+      {
+        "growth_stage": "S4_5",
+        "image": "traj_cabbage_R2-L-F2_S4_5.jpg"
+      },
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R2-L-F2_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R2-L-F2_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R2-L-F2_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-L-F3",
+    "rail": 2,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R2-L-F3_S4_5.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S4_5",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S4_5",
+        "image": "traj_cabbage_R2-L-F3_S4_5.jpg"
+      },
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R2-L-F3_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R2-L-F3_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R2-L-F3_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-L-F4",
+    "rail": 2,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R2-L-F4_S6_7.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S6_7",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R2-L-F4_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R2-L-F4_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R2-L-F4_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-L-B1",
+    "rail": 2,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Downy_mildew_R2-L-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Downy_mildew"
+    }
+  },
+  {
+    "pod_id": "R2-L-B2",
+    "rail": 2,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Fusarium_wilt_R2-L-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Fusarium_wilt"
+    }
+  },
+  {
+    "pod_id": "R2-L-B3",
+    "rail": 2,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Powdery_mildew_R2-L-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Powdery_mildew"
+    }
+  },
+  {
+    "pod_id": "R2-L-B4",
+    "rail": 2,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Ringspot_R2-L-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Ringspot"
+    }
+  },
+  {
+    "pod_id": "R2-M-F1",
+    "rail": 2,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R2-M-F1_Stage_01__Early_Growth.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Stage 01- Early Growth",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Stage 01- Early Growth",
+        "image": "traj_lettuce_R2-M-F1_Stage_01__Early_Growth.jpg"
+      },
+      {
+        "growth_stage": "stage 02- Leafy growth",
+        "image": "traj_lettuce_R2-M-F1_stage_02__Leafy_growth.jpg"
+      },
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R2-M-F1_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R2-M-F1_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-M-F2",
+    "rail": 2,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R2-M-F2_stage_02__Leafy_growth.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 02- Leafy growth",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 02- Leafy growth",
+        "image": "traj_lettuce_R2-M-F2_stage_02__Leafy_growth.jpg"
+      },
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R2-M-F2_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R2-M-F2_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-M-F3",
+    "rail": 2,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R2-M-F3_stage_03__Head_formation.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 03- Head formation",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R2-M-F3_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R2-M-F3_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-M-F4",
+    "rail": 2,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R2-M-F4_stage_04__Harvest_stage.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 04- Harvest stage",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R2-M-F4_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-M-B1",
+    "rail": 2,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Septoria_Blight_on_lettuce_R2-M-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Septoria_Blight_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R2-M-B2",
+    "rail": 2,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Viral_R2-M-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Viral"
+    }
+  },
+  {
+    "pod_id": "R2-M-B3",
+    "rail": 2,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Wilt_and_leaf_blight_on_lettuce_R2-M-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Wilt_and_leaf_blight_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R2-M-B4",
+    "rail": 2,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_healthy_R2-M-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R2-R-F1",
+    "rail": 2,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R2-R-F1_Intermediate.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Intermediate",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R2-R-F1_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R2-R-F1_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-R-F2",
+    "rail": 2,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R2-R-F2_Juvenile.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Juvenile",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Juvenile",
+        "image": "traj_mushroom_R2-R-F2_Juvenile.jpg"
+      },
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R2-R-F2_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R2-R-F2_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-R-F3",
+    "rail": 2,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R2-R-F3_Harvest.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Harvest",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R2-R-F3_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-R-F4",
+    "rail": 2,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R2-R-F4_Intermediate.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Intermediate",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R2-R-F4_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R2-R-F4_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R2-R-B1",
+    "rail": 2,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Wilt_R2-R-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Wilt"
+    }
+  },
+  {
+    "pod_id": "R2-R-B2",
+    "rail": 2,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Healthy_R2-R-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R2-R-B3",
+    "rail": 2,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Bacterial_Blotch_R2-R-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Bacterial Blotch"
+    }
+  },
+  {
+    "pod_id": "R2-R-B4",
+    "rail": 2,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Dry_Bubble_R2-R-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Dry Bubble"
+    }
+  },
+  {
+    "pod_id": "R3-L-F1",
+    "rail": 3,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R3-L-F1_S8.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S8",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R3-L-F1_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R3-L-F1_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-L-F2",
+    "rail": 3,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R3-L-F2_S9.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S9",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R3-L-F2_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-L-F3",
+    "rail": 3,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R3-L-F3_S2_3.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S2_3",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S2_3",
+        "image": "traj_cabbage_R3-L-F3_S2_3.jpg"
+      },
+      {
+        "growth_stage": "S4_5",
+        "image": "traj_cabbage_R3-L-F3_S4_5.jpg"
+      },
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R3-L-F3_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R3-L-F3_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R3-L-F3_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-L-F4",
+    "rail": 3,
+    "station": 0,
+    "side": "front",
+    "crop_type": "cabbage",
+    "image": "traj_cabbage_R3-L-F4_S4_5.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "S4_5",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "S4_5",
+        "image": "traj_cabbage_R3-L-F4_S4_5.jpg"
+      },
+      {
+        "growth_stage": "S6_7",
+        "image": "traj_cabbage_R3-L-F4_S6_7.jpg"
+      },
+      {
+        "growth_stage": "S8",
+        "image": "traj_cabbage_R3-L-F4_S8.jpg"
+      },
+      {
+        "growth_stage": "S9",
+        "image": "traj_cabbage_R3-L-F4_S9.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-L-B1",
+    "rail": 3,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Sclerotinia_rot_R3-L-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Sclerotinia_rot"
+    }
+  },
+  {
+    "pod_id": "R3-L-B2",
+    "rail": 3,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Healthy_R3-L-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R3-L-B3",
+    "rail": 3,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Alternaria_leaf_spot_R3-L-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Alternaria_leaf_spot"
+    }
+  },
+  {
+    "pod_id": "R3-L-B4",
+    "rail": 3,
+    "station": 0,
+    "side": "back",
+    "crop_type": "cabbage",
+    "image": "cabbage_disease_Cabbage_Bacterial_leaf_spot_R3-L-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Cabbage-Bacterial_leaf_spot"
+    }
+  },
+  {
+    "pod_id": "R3-M-F1",
+    "rail": 3,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R3-M-F1_Stage_01__Early_Growth.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Stage 01- Early Growth",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Stage 01- Early Growth",
+        "image": "traj_lettuce_R3-M-F1_Stage_01__Early_Growth.jpg"
+      },
+      {
+        "growth_stage": "stage 02- Leafy growth",
+        "image": "traj_lettuce_R3-M-F1_stage_02__Leafy_growth.jpg"
+      },
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R3-M-F1_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R3-M-F1_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-M-F2",
+    "rail": 3,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R3-M-F2_stage_02__Leafy_growth.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 02- Leafy growth",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 02- Leafy growth",
+        "image": "traj_lettuce_R3-M-F2_stage_02__Leafy_growth.jpg"
+      },
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R3-M-F2_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R3-M-F2_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-M-F3",
+    "rail": 3,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R3-M-F3_stage_03__Head_formation.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 03- Head formation",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 03- Head formation",
+        "image": "traj_lettuce_R3-M-F3_stage_03__Head_formation.jpg"
+      },
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R3-M-F3_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-M-F4",
+    "rail": 3,
+    "station": 1,
+    "side": "front",
+    "crop_type": "lettuce",
+    "image": "traj_lettuce_R3-M-F4_stage_04__Harvest_stage.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "stage 04- Harvest stage",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "stage 04- Harvest stage",
+        "image": "traj_lettuce_R3-M-F4_stage_04__Harvest_stage.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-M-B1",
+    "rail": 3,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Bacterial_R3-M-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Bacterial"
+    }
+  },
+  {
+    "pod_id": "R3-M-B2",
+    "rail": 3,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Downy_mildew_on_lettuce_R3-M-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Downy_mildew_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R3-M-B3",
+    "rail": 3,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Powdery_mildew_on_lettuce_R3-M-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Powdery_mildew_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R3-M-B4",
+    "rail": 3,
+    "station": 1,
+    "side": "back",
+    "crop_type": "lettuce",
+    "image": "lettuce_disease_Septoria_Blight_on_lettuce_R3-M-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Septoria_Blight_on_lettuce"
+    }
+  },
+  {
+    "pod_id": "R3-R-F1",
+    "rail": 3,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R3-R-F1_Juvenile.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Juvenile",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Juvenile",
+        "image": "traj_mushroom_R3-R-F1_Juvenile.jpg"
+      },
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R3-R-F1_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R3-R-F1_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-R-F2",
+    "rail": 3,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R3-R-F2_Harvest.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Harvest",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R3-R-F2_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-R-F3",
+    "rail": 3,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R3-R-F3_Intermediate.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Intermediate",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R3-R-F3_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R3-R-F3_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-R-F4",
+    "rail": 3,
+    "station": 2,
+    "side": "front",
+    "crop_type": "mushroom",
+    "image": "traj_mushroom_R3-R-F4_Juvenile.jpg",
+    "ground_truth": {
+      "verified_aspect": "growth",
+      "growth_stage": "Juvenile",
+      "diseased": null,
+      "disease_name": null
+    },
+    "trajectory": [
+      {
+        "growth_stage": "Juvenile",
+        "image": "traj_mushroom_R3-R-F4_Juvenile.jpg"
+      },
+      {
+        "growth_stage": "Intermediate",
+        "image": "traj_mushroom_R3-R-F4_Intermediate.jpg"
+      },
+      {
+        "growth_stage": "Harvest",
+        "image": "traj_mushroom_R3-R-F4_Harvest.jpg"
+      }
+    ]
+  },
+  {
+    "pod_id": "R3-R-B1",
+    "rail": 3,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Trichoderma_R3-R-B1.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Trichoderma"
+    }
+  },
+  {
+    "pod_id": "R3-R-B2",
+    "rail": 3,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Wilt_R3-R-B2.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Wilt"
+    }
+  },
+  {
+    "pod_id": "R3-R-B3",
+    "rail": 3,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Healthy_R3-R-B3.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": false,
+      "disease_name": null
+    }
+  },
+  {
+    "pod_id": "R3-R-B4",
+    "rail": 3,
+    "station": 2,
+    "side": "back",
+    "crop_type": "mushroom",
+    "image": "mushroom_disease_Bacterial_Blotch_R3-R-B4.jpg",
+    "ground_truth": {
+      "verified_aspect": "disease",
+      "growth_stage": null,
+      "diseased": true,
+      "disease_name": "Bacterial Blotch"
+    }
+  }
+]

@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>OpenCV-Farming-Agent — Run Results</title>
+<style>
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px 0; }
+  .subtitle { color: #666; margin-bottom: 20px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .card img { width: 100%; display: block; }
+  .meta { padding: 8px 10px 10px 10px; }
+  .pod-id { font-weight: 600; font-size: 13px; }
+  .crop { font-weight: 400; color: #888; text-transform: capitalize; }
+  .stage { font-size: 12px; color: #444; margin: 3px 0; }
+  .action { display: inline-block; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 2px; }
+  .trend { font-size: 11px; color: #888; margin-top: 4px; font-style: italic; }
+</style>
+</head>
+<body>
+  <h1>OpenCV-Farming-Agent — Run Results</h1>
+  <div class="subtitle">72 pod-visit(s) — growth-stage boxes in cyan, disease boxes in orange-red</div>
+  <div class="grid">
+    
+<div class="card">
+  <img src="annotated/R1-L-F1_v1.jpg" alt="R1-L-F1">
+  <div class="meta">
+    <div class="pod-id">R1-L-F1 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S2_3 &nbsp;|&nbsp; Cabbage-Bacterial_leaf_spot</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-F2_v1.jpg" alt="R1-L-F2">
+  <div class="meta">
+    <div class="pod-id">R1-L-F2 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S4_5 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-F3_v1.jpg" alt="R1-L-F3">
+  <div class="meta">
+    <div class="pod-id">R1-L-F3 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S6_7 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-F4_v1.jpg" alt="R1-L-F4">
+  <div class="meta">
+    <div class="pod-id">R1-L-F4 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S8 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-B1_v1.jpg" alt="R1-L-B1">
+  <div class="meta">
+    <div class="pod-id">R1-L-B1 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-B2_v1.jpg" alt="R1-L-B2">
+  <div class="meta">
+    <div class="pod-id">R1-L-B2 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Alternaria_leaf_spot</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-B3_v1.jpg" alt="R1-L-B3">
+  <div class="meta">
+    <div class="pod-id">R1-L-B3 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Downy_mildew</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-L-B4_v1.jpg" alt="R1-L-B4">
+  <div class="meta">
+    <div class="pod-id">R1-L-B4 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Black_rot</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-F1_v1.jpg" alt="R1-M-F1">
+  <div class="meta">
+    <div class="pod-id">R1-M-F1 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: Stage 01- Early Growth &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-F2_v1.jpg" alt="R1-M-F2">
+  <div class="meta">
+    <div class="pod-id">R1-M-F2 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 02- Leafy growth &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-F3_v1.jpg" alt="R1-M-F3">
+  <div class="meta">
+    <div class="pod-id">R1-M-F3 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 03- Head formation &nbsp;|&nbsp; Bacterial</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-F4_v1.jpg" alt="R1-M-F4">
+  <div class="meta">
+    <div class="pod-id">R1-M-F4 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; Bacterial</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-B1_v1.jpg" alt="R1-M-B1">
+  <div class="meta">
+    <div class="pod-id">R1-M-B1 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-B2_v1.jpg" alt="R1-M-B2">
+  <div class="meta">
+    <div class="pod-id">R1-M-B2 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; Bacterial</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-B3_v1.jpg" alt="R1-M-B3">
+  <div class="meta">
+    <div class="pod-id">R1-M-B3 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Downy_mildew_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-M-B4_v1.jpg" alt="R1-M-B4">
+  <div class="meta">
+    <div class="pod-id">R1-M-B4 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Powdery_mildew_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-F1_v1.jpg" alt="R1-R-F1">
+  <div class="meta">
+    <div class="pod-id">R1-R-F1 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Intermediate &nbsp;|&nbsp; Trichoderma</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-F2_v1.jpg" alt="R1-R-F2">
+  <div class="meta">
+    <div class="pod-id">R1-R-F2 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Intermediate &nbsp;|&nbsp; Bacterial Blotch</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-F3_v1.jpg" alt="R1-R-F3">
+  <div class="meta">
+    <div class="pod-id">R1-R-F3 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Harvest &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-F4_v1.jpg" alt="R1-R-F4">
+  <div class="meta">
+    <div class="pod-id">R1-R-F4 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Intermediate &nbsp;|&nbsp; Dry Bubble</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-B1_v1.jpg" alt="R1-R-B1">
+  <div class="meta">
+    <div class="pod-id">R1-R-B1 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Juvenile &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-B2_v1.jpg" alt="R1-R-B2">
+  <div class="meta">
+    <div class="pod-id">R1-R-B2 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Bacterial Blotch</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-B3_v1.jpg" alt="R1-R-B3">
+  <div class="meta">
+    <div class="pod-id">R1-R-B3 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Dry Bubble</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R1-R-B4_v1.jpg" alt="R1-R-B4">
+  <div class="meta">
+    <div class="pod-id">R1-R-B4 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Trichoderma</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-F1_v1.jpg" alt="R2-L-F1">
+  <div class="meta">
+    <div class="pod-id">R2-L-F1 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S9 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-F2_v1.jpg" alt="R2-L-F2">
+  <div class="meta">
+    <div class="pod-id">R2-L-F2 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S2_3 &nbsp;|&nbsp; Cabbage-Bacterial_leaf_spot</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-F3_v1.jpg" alt="R2-L-F3">
+  <div class="meta">
+    <div class="pod-id">R2-L-F3 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S4_5 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-F4_v1.jpg" alt="R2-L-F4">
+  <div class="meta">
+    <div class="pod-id">R2-L-F4 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S6_7 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-B1_v1.jpg" alt="R2-L-B1">
+  <div class="meta">
+    <div class="pod-id">R2-L-B1 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Downy_mildew</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-B2_v1.jpg" alt="R2-L-B2">
+  <div class="meta">
+    <div class="pod-id">R2-L-B2 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Fusarium_wilt</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-B3_v1.jpg" alt="R2-L-B3">
+  <div class="meta">
+    <div class="pod-id">R2-L-B3 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Powdery_mildew</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-L-B4_v1.jpg" alt="R2-L-B4">
+  <div class="meta">
+    <div class="pod-id">R2-L-B4 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Ringspot</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-F1_v1.jpg" alt="R2-M-F1">
+  <div class="meta">
+    <div class="pod-id">R2-M-F1 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: Stage 01- Early Growth &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-F2_v1.jpg" alt="R2-M-F2">
+  <div class="meta">
+    <div class="pod-id">R2-M-F2 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 02- Leafy growth &nbsp;|&nbsp; Powdery_mildew_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-F3_v1.jpg" alt="R2-M-F3">
+  <div class="meta">
+    <div class="pod-id">R2-M-F3 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 03- Head formation &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-F4_v1.jpg" alt="R2-M-F4">
+  <div class="meta">
+    <div class="pod-id">R2-M-F4 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-B1_v1.jpg" alt="R2-M-B1">
+  <div class="meta">
+    <div class="pod-id">R2-M-B1 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Septoria_Blight_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-B2_v1.jpg" alt="R2-M-B2">
+  <div class="meta">
+    <div class="pod-id">R2-M-B2 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; Viral</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-B3_v1.jpg" alt="R2-M-B3">
+  <div class="meta">
+    <div class="pod-id">R2-M-B3 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: Stage 01- Early Growth &nbsp;|&nbsp; Wilt_and_leaf_blight_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-M-B4_v1.jpg" alt="R2-M-B4">
+  <div class="meta">
+    <div class="pod-id">R2-M-B4 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-F1_v1.jpg" alt="R2-R-F1">
+  <div class="meta">
+    <div class="pod-id">R2-R-F1 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Intermediate &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-F2_v1.jpg" alt="R2-R-F2">
+  <div class="meta">
+    <div class="pod-id">R2-R-F2 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Harvest &nbsp;|&nbsp; Bacterial Blotch</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-F3_v1.jpg" alt="R2-R-F3">
+  <div class="meta">
+    <div class="pod-id">R2-R-F3 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Juvenile &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-F4_v1.jpg" alt="R2-R-F4">
+  <div class="meta">
+    <div class="pod-id">R2-R-F4 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Intermediate &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-B1_v1.jpg" alt="R2-R-B1">
+  <div class="meta">
+    <div class="pod-id">R2-R-B1 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Intermediate &nbsp;|&nbsp; Wilt</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-B2_v1.jpg" alt="R2-R-B2">
+  <div class="meta">
+    <div class="pod-id">R2-R-B2 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Harvest &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-B3_v1.jpg" alt="R2-R-B3">
+  <div class="meta">
+    <div class="pod-id">R2-R-B3 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Bacterial Blotch</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R2-R-B4_v1.jpg" alt="R2-R-B4">
+  <div class="meta">
+    <div class="pod-id">R2-R-B4 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Dry Bubble</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-F1_v1.jpg" alt="R3-L-F1">
+  <div class="meta">
+    <div class="pod-id">R3-L-F1 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S8 &nbsp;|&nbsp; Cabbage-Sclerotinia_rot</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-F2_v1.jpg" alt="R3-L-F2">
+  <div class="meta">
+    <div class="pod-id">R3-L-F2 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S9 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-F3_v1.jpg" alt="R3-L-F3">
+  <div class="meta">
+    <div class="pod-id">R3-L-F3 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S2_3 &nbsp;|&nbsp; Cabbage-Bacterial_leaf_spot</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-F4_v1.jpg" alt="R3-L-F4">
+  <div class="meta">
+    <div class="pod-id">R3-L-F4 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: S4_5 &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-B1_v1.jpg" alt="R3-L-B1">
+  <div class="meta">
+    <div class="pod-id">R3-L-B1 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Sclerotinia_rot</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-B2_v1.jpg" alt="R3-L-B2">
+  <div class="meta">
+    <div class="pod-id">R3-L-B2 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#d4b400">schedule_frequent_monitoring</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-B3_v1.jpg" alt="R3-L-B3">
+  <div class="meta">
+    <div class="pod-id">R3-L-B3 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Alternaria_leaf_spot</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-L-B4_v1.jpg" alt="R3-L-B4">
+  <div class="meta">
+    <div class="pod-id">R3-L-B4 <span class="crop">cabbage</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Cabbage-Bacterial_leaf_spot</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-F1_v1.jpg" alt="R3-M-F1">
+  <div class="meta">
+    <div class="pod-id">R3-M-F1 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: Stage 01- Early Growth &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-F2_v1.jpg" alt="R3-M-F2">
+  <div class="meta">
+    <div class="pod-id">R3-M-F2 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 02- Leafy growth &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-F3_v1.jpg" alt="R3-M-F3">
+  <div class="meta">
+    <div class="pod-id">R3-M-F3 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 03- Head formation &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-F4_v1.jpg" alt="R3-M-F4">
+  <div class="meta">
+    <div class="pod-id">R3-M-F4 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-B1_v1.jpg" alt="R3-M-B1">
+  <div class="meta">
+    <div class="pod-id">R3-M-B1 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; Bacterial</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-B2_v1.jpg" alt="R3-M-B2">
+  <div class="meta">
+    <div class="pod-id">R3-M-B2 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; Downy_mildew_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-B3_v1.jpg" alt="R3-M-B3">
+  <div class="meta">
+    <div class="pod-id">R3-M-B3 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 04- Harvest stage &nbsp;|&nbsp; Powdery_mildew_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-M-B4_v1.jpg" alt="R3-M-B4">
+  <div class="meta">
+    <div class="pod-id">R3-M-B4 <span class="crop">lettuce</span></div>
+    <div class="stage">stage: stage 03- Head formation &nbsp;|&nbsp; Septoria_Blight_on_lettuce</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-F1_v1.jpg" alt="R3-R-F1">
+  <div class="meta">
+    <div class="pod-id">R3-R-F1 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Harvest &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-F2_v1.jpg" alt="R3-R-F2">
+  <div class="meta">
+    <div class="pod-id">R3-R-F2 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Juvenile &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-F3_v1.jpg" alt="R3-R-F3">
+  <div class="meta">
+    <div class="pod-id">R3-R-F3 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Harvest &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-F4_v1.jpg" alt="R3-R-F4">
+  <div class="meta">
+    <div class="pod-id">R3-R-F4 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Harvest &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#e0972a">flag_for_harvest</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-B1_v1.jpg" alt="R3-R-B1">
+  <div class="meta">
+    <div class="pod-id">R3-R-B1 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Trichoderma</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-B2_v1.jpg" alt="R3-R-B2">
+  <div class="meta">
+    <div class="pod-id">R3-R-B2 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Wilt</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-B3_v1.jpg" alt="R3-R-B3">
+  <div class="meta">
+    <div class="pod-id">R3-R-B3 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: Juvenile &nbsp;|&nbsp; no disease</div>
+    <div class="action" style="background:#3aa93a">log_healthy</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+
+<div class="card">
+  <img src="annotated/R3-R-B4_v1.jpg" alt="R3-R-B4">
+  <div class="meta">
+    <div class="pod-id">R3-R-B4 <span class="crop">mushroom</span></div>
+    <div class="stage">stage: None &nbsp;|&nbsp; Bacterial Blotch</div>
+    <div class="action" style="background:#d23c3c">flag_for_treatment</div>
+    <div class="trend">first visit</div>
+  </div>
+</div>
+
+  </div>
+</body>
+</html>
