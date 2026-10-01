@@ -180,6 +180,7 @@ def run(crop=None, max_pods=None, visits=1, reset_history=False, save_images=Fal
 
     csv_path, json_path = logger.flush()
     summary = logger.summary()
+    cloud.shutdown()
 
     print("\n--- run summary ---")
     for k, v in summary.items():

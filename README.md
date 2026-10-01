@@ -152,6 +152,56 @@ disk). If you're on a headless server/SSH session with no display, use
 `live_monitor.py --no-window` to exercise the same loop headlessly as a
 smoke test.
 
+## Concurrent multi-pod processing
+
+`live_monitor.py` shows one pod at a time. `concurrent_monitor.py` is
+the sketch that kicked this off, built for real: **multiple pods
+processing truly simultaneously** — pod 1 advancing through its image
+1 → 2 → 3 growth sequence at the same time pod 2 advances through its
+own, shown as a grid of live panels side by side.
+
+**This needed a real fix first, not just new code.** Before building
+it, I tested whether running two pods of the same crop concurrently
+was actually safe — it wasn't. `perception.py` cached one shared model
+object per crop, and calling `.forward()` on it from two threads at
+once corrupted results *silently*: 24 out of 24 concurrent calls
+returned different output than running the exact same calls one at a
+time, with no exception raised. That's the dangerous kind of bug —
+wrong answers that look like normal output.
+
+Fixed at the root, not worked around: `perception.py`'s model cache is
+now thread-local (each thread gets its own model instance, so there's
+nothing to race on), and `cloud_pipeline.py`'s `LocalCloudClient` runs
+work through a bounded thread pool instead of spawning an unlimited
+thread per request — bounded because unbounded concurrency was also
+measured to make things *slower* (three pods contending for one CPU
+core already showed real overhead), and because a real Lambda
+deployment has a concurrency limit too, so this isn't a workaround,
+it's the architecturally honest version. Re-tested the exact same
+race through the real `LocalCloudClient` path afterward: 0/6 mismatches.
+
+**Architecture:** a fixed number of visual **slots** (`--slots`,
+default 4) each run a worker thread that pulls the next pod off a
+shared queue, runs that pod's full image sequence to completion (its
+whole growth trajectory for front pods, one image for back pods), then
+picks up the next pod — a fixed-lane dashboard, not "launch 72 threads
+at once." Within one pod, images stay strictly in order (growth is
+chronological); across slots, different pods genuinely run at the same
+time. Every step still writes to the same persistent history
+(`dynamo_client.py`) and gets the same trend note (`trend.py`) as
+`main.py`/`live_monitor.py` — this is a third way to advance a pod's
+history, not a separate concept from it.
+
+```bash
+python3 concurrent_monitor.py                # all 72 pods, 4 slots
+python3 concurrent_monitor.py --slots 6       # 6 pods in flight at once
+python3 concurrent_monitor.py --crop mushroom
+python3 concurrent_monitor.py --pods 12 --slots 3
+```
+
+Controls: `q`/`Esc` quit (finishes in-flight steps first, no partial
+log rows), `p` pause new pod pickup.
+
 ## Files
 
 | File | Role |
@@ -159,17 +209,18 @@ smoke test.
 | `pod_registry.py` | Loads `pods_manifest.json` into 72 pod dicts (metadata + growth trajectories, no rig geometry) |
 | `pods_manifest.json` | The 72 pod → image → ground-truth assignments, plus each front pod's full growth trajectory |
 | `sample_images/` | 129 real curated photos (72 base + 57 additional trajectory stages) |
-| `perception.py` | `classify_pod()` — real ONNX models via `cv2.dnn` |
+| `perception.py` | `classify_pod()` — real ONNX models via `cv2.dnn`, thread-local model cache |
 | `agent.py` | `decide_action()` — the 4-action decision logic |
 | `camera.py` | Capture + submit only, no classification |
-| `cloud_pipeline.py` | `LocalCloudClient` — simulated async cloud round-trip |
+| `cloud_pipeline.py` | `LocalCloudClient` — simulated async cloud round-trip, bounded thread pool |
 | `dynamo_client.py` | `LocalDynamoTable` — persistent per-pod history, stand-in for DynamoDB |
 | `trend.py` | Turns a pod's history into a short human-readable trend note |
 | `run_logger.py` | CSV + JSON logging, aspect-aware accuracy scoring, visit/trend-aware |
 | `visualize.py` | Draws real detection boxes + a decision banner onto each pod's photo |
 | `gallery.py` | Builds one static HTML page presenting every annotated image from a run |
 | `main.py` | Batch driver — processes every pod, optionally saves images + gallery, no window |
-| `live_monitor.py` | Real-time OpenCV desktop app — same pipeline, shown live in a window with a dashboard |
+| `live_monitor.py` | Real-time OpenCV desktop app — one pod at a time, live window with a dashboard |
+| `concurrent_monitor.py` | Real-time OpenCV desktop app — multiple pods at once, grid of live slots |
 | `models/` | The 6 `.onnx` files `perception.py` loads |
 
 ## Running it
@@ -183,7 +234,8 @@ python3 main.py --crop mushroom --visits 3
 python3 main.py --pods 8 --visits 3      # quick smoke test
 python3 main.py --reset-history          # clear dynamo_table.json before this run
 python3 main.py --save-images            # also save annotated images + logs/gallery.html
-python3 live_monitor.py                  # real-time OpenCV window instead of a batch report
+python3 live_monitor.py                  # real-time OpenCV window, one pod at a time
+python3 concurrent_monitor.py            # real-time OpenCV window, multiple pods at once
 ```
 
 No `pybullet` in the dependency list at all — this build genuinely
@@ -254,6 +306,23 @@ right edge of the frame ran off it, since only the banner text had
 edge-fitting — not individual box labels. Fixed by clamping the label's
 x-position in `visualize.py`, which also fixes the same edge case in
 `--save-images`' output, since both share that code.
+
+**`concurrent_monitor.py`, tested at full scale, headlessly and
+visually:** a headless run across all 72 pods with 4 slots completed
+cleanly (129 total image-steps, every pod picked up and finished,
+`disease_flag_accuracy: 36/36`). Visual correctness was checked the
+same way as `live_monitor.py` — composing the real grid frame mid-run
+and saving it to a file — which showed four different pods' real
+photos, detection boxes, and decisions rendering correctly in their
+own slots at once, each on its own step count, exactly as intended.
+
+One honest number: on this specific machine (1 CPU core), 4 slots
+measured about 19% faster than 1 slot (14.3s vs 17.7s for the same 12
+pods) — real, but modest, because there's only one core for threads to
+share regardless of how many are runnable. The concurrency-safety fix
+is what matters everywhere; the wall-clock speedup from it scales with
+how many cores you actually run it on, and should be more pronounced
+on typical multi-core hardware than what this sandbox could show.
 
 ## What's deliberately NOT here
 

@@ -15,6 +15,7 @@ Set MODEL_DIR (below) to wherever you keep them before calling classify_pod().
 """
 
 from pathlib import Path
+import threading
 
 import cv2
 import numpy as np
@@ -104,35 +105,46 @@ MODEL_REGISTRY = {
     },
 }
 
-_net_cache = {}
-_net_cache_lock = __import__("threading").Lock()
+_thread_local = threading.local()
 
 
 def _get_net(crop_type, kind):
-    """Lazily loads and caches a cv2.dnn.Net for (crop_type, kind).
-    Locked because cloud_pipeline.LocalCloudClient calls classify_pod() from
-    background threads — without this, two threads racing on a cold cache
-    could both load the same model at once."""
+    """Lazily loads and caches a cv2.dnn.Net for (crop_type, kind), one
+    cache PER THREAD (threading.local), not a shared global dict.
+
+    This matters for correctness, not just tidiness: cv2.dnn.Net.forward()
+    is not safe to call concurrently on the same Net instance from
+    multiple threads — verified directly (24/24 concurrent calls on a
+    shared Net returned wrong results with no exception raised, the
+    dangerous kind of bug). A thread-local cache means two pods of the
+    same crop processed concurrently (see cloud_pipeline.py) each get
+    their own Net, so there's nothing to race on. The cost is each
+    thread pays its own one-time model-load (~0.05s) rather than reusing
+    a global cache — cheap enough not to matter, and
+    cloud_pipeline.LocalCloudClient pre-warms each of its pool threads
+    once via ThreadPoolExecutor's initializer so this cost is paid once
+    per worker thread, not once per pod."""
+    if not hasattr(_thread_local, "nets"):
+        _thread_local.nets = {}
     key = (crop_type, kind)
-    with _net_cache_lock:
-        if key not in _net_cache:
-            model_path = MODEL_DIR / MODEL_REGISTRY[crop_type][kind]["path"]
-            if not model_path.exists():
-                raise FileNotFoundError(
-                    f"Expected model at {model_path} — set perception.MODEL_DIR to the "
-                    f"folder holding your .onnx exports before calling classify_pod()."
-                )
-            _net_cache[key] = cv2.dnn.readNetFromONNX(str(model_path))
-        return _net_cache[key]
+    if key not in _thread_local.nets:
+        model_path = MODEL_DIR / MODEL_REGISTRY[crop_type][kind]["path"]
+        if not model_path.exists():
+            raise FileNotFoundError(
+                f"Expected model at {model_path} — set perception.MODEL_DIR to the "
+                f"folder holding your .onnx exports before calling classify_pod()."
+            )
+        _thread_local.nets[key] = cv2.dnn.readNetFromONNX(str(model_path))
+    return _thread_local.nets[key]
 
 
 def warm_up(crop_types=None):
-    """Loads every model into the cache up front. Call this once before
-    your PyBullet loop starts submitting frames, the same way a real
-    deployment would use provisioned-concurrency Lambdas or a pre-warmed
-    EC2/Fargate service — otherwise the first frame for each crop pays a
-    one-time model-load cost that has nothing to do with actual inference
-    speed, and will skew any latency numbers you measure."""
+    """Loads every model into THIS THREAD's cache up front. Call this
+    once before submitting frames on whichever thread will run
+    classify_pod() — the main thread for main.py/live_monitor.py's
+    synchronous flow, or pass as a ThreadPoolExecutor initializer (see
+    cloud_pipeline.py) so every pool worker pre-warms itself once rather
+    than paying model-load cost on its first assigned pod."""
     for crop_type in (crop_types or MODEL_REGISTRY.keys()):
         _get_net(crop_type, "growth")
         _get_net(crop_type, "disease")

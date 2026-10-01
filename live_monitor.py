@@ -201,6 +201,7 @@ class LiveMonitor:
         finally:
             if show_window:
                 cv2.destroyAllWindows()
+            self.cloud.shutdown()
             csv_path, json_path = self.logger.flush()
             summary = self.logger.summary()
             print("\n--- run summary ---")

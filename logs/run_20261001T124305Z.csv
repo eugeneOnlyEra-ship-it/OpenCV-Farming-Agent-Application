@@ -1,0 +1,1 @@
+timestamp,visit,pod_id,rail,station,side,crop_type,growth_stage,growth_confidence,disease_flag,disease_name,disease_confidence,confidence,action,reason,trend,verified_aspect,ground_truth_stage,ground_truth_diseased,ground_truth_disease_name
