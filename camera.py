@@ -16,11 +16,11 @@ class PodCamera:
     def __init__(self, cloud_client):
         self.cloud_client = cloud_client
 
-    def capture_and_submit(self, pod_id, crop_type, image):
+    def capture_and_submit(self, pod_id, crop_type, image, conf_threshold=None):
         """Call this once you have a frame for a pod -- a PyBullet camera
         capture (numpy array) in the simulated build, or a dataset image
         path here. This function does nothing with it except pass it
         along. Returns a request_id; the classification/decision comes
         back later via cloud_client.get_feedback(request_id).
         """
-        return self.cloud_client.submit_frame(pod_id, crop_type, image)
+        return self.cloud_client.submit_frame(pod_id, crop_type, image, conf_threshold=conf_threshold)

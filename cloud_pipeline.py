@@ -71,7 +71,7 @@ class LocalCloudClient:
             thread_name_prefix="cloud-worker",
         )
 
-    def submit_frame(self, pod_id, crop_type, image):
+    def submit_frame(self, pod_id, crop_type, image, conf_threshold=None):
         """Robot/camera side calls this after capturing a frame. Returns a
         request_id immediately without waiting for classification — this is
         the 'camera just collects images' half of the split. Processing
@@ -91,17 +91,21 @@ class LocalCloudClient:
                 "submitted_at": submitted_at,
             }
 
-        self._executor.submit(self._process, request_id, pod_id, crop_type, image, submitted_at)
+        self._executor.submit(self._process, request_id, pod_id, crop_type, image, submitted_at, conf_threshold)
         return request_id
 
-    def _process(self, request_id, pod_id, crop_type, image, submitted_at):
+    def _process(self, request_id, pod_id, crop_type, image, submitted_at, conf_threshold=None):
         """Runs on a pool worker thread — this is the 'cloud' half: the
         actual classify_pod() + decide_action() call. In a real deployment
         this is the code that runs inside the Lambda function, not on the
         robot."""
         time.sleep(random.uniform(*self._latency_range))
 
-        classification = classify_pod(pod_id, crop_type, image)
+        # conf_threshold=None -> perception's own default; the interactive UI passes its sensitivity slider here
+        if conf_threshold is None:
+            classification = classify_pod(pod_id, crop_type, image)
+        else:
+            classification = classify_pod(pod_id, crop_type, image, conf_threshold=conf_threshold)
         action = decide_action(classification)
         completed_at = time.time()
 

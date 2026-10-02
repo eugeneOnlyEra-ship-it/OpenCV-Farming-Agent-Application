@@ -202,6 +202,36 @@ python3 concurrent_monitor.py --pods 12 --slots 3
 Controls: `q`/`Esc` quit (finishes in-flight steps first, no partial
 log rows), `p` pause new pod pickup.
 
+## Interactive app (`app_ui.py`) — the UI, not an OpenCV window
+
+`python3 app_ui.py` opens a real desktop application (Tkinter — ships with
+Python, so the dependencies are still just `opencv-python` + `numpy`; on
+Linux you may need `sudo apt install python3-tk`). The photos are shown
+plainly and every reading is rendered as UI beside them, laid out like the
+design sketch: each pod is a card with a **disease** row and a **growth**
+row (photo + score panel with one bar per class the model can output), and
+alternate cards are mirrored so the scores sit on the inside.
+
+- **Run controls:** Start / Pause / Resume / Step / Stop (`Space` pauses, `N` steps while paused).
+  Pause lets in-flight scans finish and then starts nothing new; Step advances every un-held pod by one image.
+- **Per pod:** *Hold* a lane on its pod, *Skip* the pod, *Re-scan* the image on screen
+  (not written to history/log, so it never advances growth), and a timeline to step back
+  through that pod's earlier images (◀ ● ● ○ ▶ LIVE).
+- **Queue:** pick any pod in the sidebar and *Run next*, or *Drop from run*.
+- **Live tuning (no restart):** delay, model sensitivity (box confidence floor — applies to the next
+  scan/re-scan), disease and growth action thresholds (shown decisions re-evaluate instantly; a `*`
+  marks a decision that differs from what was logged).
+- **Inspect:** click a photo for a large view with both models' boxes; click a class row to
+  highlight only that class's boxes; hover any box for its label. Boxes are drawn by the UI over the
+  photo (toggle in the sidebar), not baked into the pixels.
+- **Setup:** crop filter, pod limit, 1–4 pods on screen, optional history reset, *Save log now*.
+
+`farm_engine.py` holds all run logic with no UI code (worker threads, queue, every control above as a
+plain method, events through a thread-safe queue), and reuses `camera.py` → `cloud_pipeline.py` →
+`perception.py`/`agent.py` → `dynamo_client.py`/`trend.py`/`run_logger.py` unchanged apart from one
+backwards-compatible change: `capture_and_submit` / `submit_frame` accept an optional `conf_threshold`.
+Pods resume where `dynamo_table.json` left off; a pod whose images are all used is re-inspected on its last image.
+
 ## Files
 
 | File | Role |
@@ -221,6 +251,8 @@ log rows), `p` pause new pod pickup.
 | `main.py` | Batch driver — processes every pod, optionally saves images + gallery, no window |
 | `live_monitor.py` | Real-time OpenCV desktop app — one pod at a time, live window with a dashboard |
 | `concurrent_monitor.py` | Real-time OpenCV desktop app — multiple pods at once, grid of live slots |
+| `app_ui.py` | Interactive desktop app (Tkinter) — pod cards with score panels, pause/hold/skip/re-scan, live tuning |
+| `farm_engine.py` | UI-independent run engine behind `app_ui.py` |
 | `models/` | The 6 `.onnx` files `perception.py` loads |
 
 ## Running it
