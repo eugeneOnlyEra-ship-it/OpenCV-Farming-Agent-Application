@@ -1,0 +1,140 @@
+{
+  "order_id": "WO-0066",
+  "task": "HARVEST",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R2-M-F3",
+  "crop_type": "lettuce",
+  "trough_id": "R2-M-F",
+  "side": "front",
+  "location": "rail 2 \u00b7 trough R2-M-F \u00b7 front",
+  "priority": 2,
+  "title": "Harvest lettuce at R2-M-F3",
+  "rationale": "lettuce at harvest stage (stage 04- Harvest stage, 0.99 confidence), no confident disease reading.",
+  "evidence": {
+    "visit": 5,
+    "step": 1,
+    "n_steps": 2,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/traj_lettuce_R2-M-F3_stage_04__Harvest_stage.jpg",
+    "image_size": [
+      420,
+      420
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.991,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.769,
+    "n_disease_detections": 2,
+    "n_growth_detections": 1,
+    "action": "flag_for_harvest",
+    "reason": "lettuce at stage 04- Harvest stage (0.99 confidence)",
+    "trend": "stage unchanged (stage 04- Harvest stage)",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:40:43+00:00",
+    "rail": 2
+  },
+  "targets": [
+    {
+      "class": "stage 04- Harvest stage",
+      "confidence": 0.991,
+      "box_norm": [
+        0.0018,
+        0.2411,
+        1.0012,
+        0.6654
+      ],
+      "center_norm": [
+        0.5024,
+        0.5738
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R2-M-F and align with pod R2-M-F3.",
+      "params": {
+        "trough": "R2-M-F",
+        "pod": "R2-M-F3",
+        "side": "front",
+        "rail": 2
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 1 harvest-stage target region(s).",
+      "params": {
+        "n_targets": 1
+      }
+    },
+    {
+      "seq": 3,
+      "action": "HARVEST",
+      "text": "Harvest: cut the head at the base.",
+      "params": {
+        "crop": "lettuce"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "PLACE_IN_CRATE",
+      "text": "Place in the crate and label it R2-M-F3 with the time.",
+      "params": {
+        "label": "R2-M-F3"
+      }
+    },
+    {
+      "seq": 5,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion and yield; pod is ready for replanting.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Harvesting is irreversible - approval required while auto-approve is off.",
+  "human_notes": [
+    "After replanting, reset this pod's growth history so it restarts at the first stage."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:40:43+00:00",
+  "updated": "2026-10-04T21:40:49+00:00",
+  "history": [
+    [
+      "2026-10-04T21:40:43+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ],
+    [
+      "2026-10-04T21:40:43+00:00",
+      "dispatched",
+      "sent to worker_front"
+    ],
+    [
+      "2026-10-04T21:40:44+00:00",
+      "in_progress",
+      "worker_front started"
+    ],
+    [
+      "2026-10-04T21:40:49+00:00",
+      "completed",
+      "completed by simulated worker_front"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "growth"
+}

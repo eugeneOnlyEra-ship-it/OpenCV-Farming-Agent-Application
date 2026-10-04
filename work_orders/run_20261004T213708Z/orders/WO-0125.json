@@ -1,0 +1,176 @@
+{
+  "order_id": "WO-0125",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R3-R-B2",
+  "crop_type": "mushroom",
+  "trough_id": "R3-R-B",
+  "side": "back",
+  "location": "rail 3 \u00b7 trough R3-R-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R3-R-B2",
+  "rationale": "Treatment WO-0123 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 3,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/mushroom_disease_Wilt_R3-R-B2.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Wilt",
+    "disease_confidence": 0.661,
+    "n_disease_detections": 2,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Wilt detected at 0.66 confidence",
+    "trend": "stage unchanged (None); disease flagged 3x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:44:31+00:00",
+    "rail": 3
+  },
+  "targets": [
+    {
+      "class": "Wilt",
+      "confidence": 0.661,
+      "box_norm": [
+        0.3915,
+        0.4695,
+        0.2801,
+        0.2393
+      ],
+      "center_norm": [
+        0.5316,
+        0.5891
+      ]
+    },
+    {
+      "class": "Wilt",
+      "confidence": 0.315,
+      "box_norm": [
+        0.2773,
+        0.2178,
+        0.4221,
+        0.4932
+      ],
+      "center_norm": [
+        0.4884,
+        0.4643
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R3-R-B and align with pod R3-R-B2.",
+      "params": {
+        "trough": "R3-R-B",
+        "pod": "R3-R-B2",
+        "side": "back",
+        "rail": 3
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0123",
+  "not_before": "2026-10-04T21:44:45+00:00",
+  "created": "2026-10-04T21:44:37+00:00",
+  "updated": "2026-10-04T21:44:52+00:00",
+  "history": [
+    [
+      "2026-10-04T21:44:37+00:00",
+      "scheduled",
+      "due 2026-10-04T21:44:45+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T21:44:45+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-04T21:44:45+00:00",
+      "dispatched",
+      "sent to camera_back"
+    ],
+    [
+      "2026-10-04T21:44:45+00:00",
+      "in_progress",
+      "camera_back started"
+    ],
+    [
+      "2026-10-04T21:44:49+00:00",
+      "completed",
+      "completed by simulated camera_back"
+    ],
+    [
+      "2026-10-04T21:44:52+00:00",
+      "completed",
+      "loop closed: Treatment verified: disease reading 0.66 -> 0.00 (2 -> 0 boxes), below the action threshold"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_worked",
+    "headline": "Treatment verified: disease reading 0.66 -> 0.00 (2 -> 0 boxes), below the action threshold",
+    "before": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": true,
+      "disease_name": "Wilt",
+      "disease_confidence": 0.661,
+      "n_disease_detections": 2,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.0,
+      "n_disease_detections": 0,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after_boxes": [],
+    "after_size": [
+      640,
+      640
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0125_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 2 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": ""
+  },
+  "aspect": "disease"
+}

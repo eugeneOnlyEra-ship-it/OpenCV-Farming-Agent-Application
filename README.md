@@ -232,6 +232,81 @@ plain method, events through a thread-safe queue), and reuses `camera.py` → `c
 backwards-compatible change: `capture_and_submit` / `submit_frame` accept an optional `conf_threshold`.
 Pods resume where `dynamo_table.json` left off; a pod whose images are all used is re-inspected on its last image.
 
+## Robot orders: instructions for the camera + worker agents
+
+The robot system has four agents, two per side of the troughs (**front**: `camera_front`, `worker_front`;
+**back**: `camera_back`, `worker_back`). The camera agents collect the images; `worker_planner.py` turns each
+analysed image into instructions for the agents. Click **🤖 Robot orders** in the app to see them.
+
+| Decision (`agent.py`) | Order produced |
+|---|---|
+| `flag_for_treatment` | worker **TREAT** — steps chosen by the disease the model named (remove leaves / remove plant / isolate-and-review…); needs human approval **unless auto-approve is on (the default)**. Completing it spawns a camera **VERIFY** visit. |
+| `flag_for_harvest` | worker **HARVEST** (approved automatically while auto-approve is on) |
+| `schedule_frequent_monitoring` | camera **RECAPTURE** — tuned to what was unclear (re-frame / zoom on the suspected region / add light) |
+| `log_healthy` | nothing |
+
+**Robot progress lives in the score panels.** After a pod's scores have been shown for a moment, the robot job that belongs to
+an aspect takes over that panel with its progress in detail (every step with its live state, the agent, a progress bar, and
+Approve / Reject when it is waiting for you): treatments and treatment checks appear where the **disease** scores were;
+harvesting and replanting appear where the **growth** scores were; camera re-captures go to whichever aspect was unclear.
+`⇄ scores` flips back to the scores while a job runs, and the scores return a few seconds after it finishes.
+
+**A pod's next image waits for its robots.** After each scan the lane waits until no robot job (treatment, harvest,
+replanting, camera re-capture, and the follow-up frame that closes the loop) is still open for that pod; only then does the next
+image start. In manual-approval mode this is where the lane waits for you. `⏭ Skip pod` releases a lane. Human reviews and
+later verification visits do not block. After a **harvest** the worker gets a **REPLANT** job (clear the pod, plant, water/feed)
+in the growth panel. The pod's growth history is *not* reset automatically; do that when the new crop is in.
+
+**Watching it run.** The main window shows all four agents live (current order, step name and progress bar; queued and waiting-for-approval counts), and each pod card shows its own order's progress. Click a tile to jump to that order. You never need to open Robot orders to follow automatic mode.
+
+**Auto-approve switch (default ON).** The `⚡ Auto-approve` button (main toolbar and Robot orders window) is a master
+switch. ON: every robot order is approved and executed automatically, including treatments, and camera follow-ups run a few
+seconds after a treatment (demo timing; set `verify_after_hours` for real use). Click it to switch to `✋ Manual approval`:
+orders created from then on - every robot order, including camera re-captures - wait for you in 🤖 Robot orders. Switching
+back to ON releases the orders that were waiting. Orders already approved are not recalled. Escalations to a human
+(**REVIEW**) always wait for a person, in both modes. Every switch is recorded in `trace.jsonl`.
+
+The vision output drives the order: detection boxes become the worker's **target regions** (normalised image
+coordinates), confidence and spread (localised vs widespread) change the steps and warnings, a TREAT order
+supersedes an open RECAPTURE for the same pod, and a later contradicting reading marks an unapproved order **stale**.
+The playbook is deliberately generic (no products, no doses) — a starting point for an agronomist, not agronomic advice.
+
+**Connecting your real robots.** Every dispatched order is written as JSON to
+`work_orders/<run>/outbox/<agent>/<order_id>.json`; swap `FileOutbox` in `worker_planner.py` for MQTT / AWS IoT Core /
+SQS / ROS 2 (any object with `.send(dict)`). Robots report back through `OrderBook.begin / advance / complete`.
+`work_orders/<run>/trace.jsonl` records every perception → decision → order → status event (agent-trace evidence).
+Until real robots are attached, tick **Simulate the 4 robots** and the built-in simulator executes dispatched orders.
+
+## Closing the loop, and the optional AI planner
+
+**The loop.** When a camera order (RECAPTURE after an uncertain reading, VERIFY after a treatment) finishes, the
+system takes a NEW frame, runs the same OpenCV analysis on it, compares with what the order was based on, and acts:
+
+| Order | New frame says | What happens next |
+|---|---|---|
+| RECAPTURE | treat / harvest | that order is created (linked to the re-capture) |
+| RECAPTURE | healthy | uncertainty resolved, nothing more to do |
+| RECAPTURE | still uncertain | escalated to a human (**REVIEW** order) |
+| VERIFY | disease below threshold | treatment verified |
+| VERIFY | still flagged | escalated to a human (**REVIEW** order) |
+
+Every step is in `work_orders/<run>/trace.jsonl` (`loop_closed` events) and shown in the Robot orders window with
+before/after images. REVIEW orders are never bulk-approved.
+
+> **The new frames are SIMULATED.** This build has no physical camera, so `frame_source.py` derives the new frame from the
+> original photo by doing what the order told the camera agent to do (zoom on the suspected region, re-frame and brighten,
+> improve contrast, or — for VERIFY — inpaint the regions the worker was told to remove). The analysis and comparison
+> are real; the frames are not. Do not report results from them as measured accuracy. They are never written to the
+> pod history. To use real frames, give the engine any object with `capture(order, out_dir) -> {"path","note","simulated"}`.
+
+**The AI planner (optional, off by default).** Pick it in the sidebar. For TREAT and HARVEST orders an AI planner receives
+the numeric evidence plus the pod's recent history and proposes a task as strict JSON; plain-code guardrails
+(`llm_planner.resolve`) decide whether to accept it. It can only agree, or ask for a RECAPTURE ("take a better look"); it can
+never create or cancel work, cannot soften strong evidence (≥3 boxes at ≥0.85), and cannot ask twice in a row for the same
+pod. Approval, dispatch and the robot steps stay in `worker_planner.py`. Backends: *Scripted demo* (a hand-written stand-in,
+**not an LLM**, for testing the wiring) or *Local LLM via Ollama* (a real model running offline on your machine;
+`ollama pull llama3.2:3b`). `python3 try_llm_planner.py --selftest` runs the guardrail tests without any model.
+
 ## Files
 
 | File | Role |
@@ -253,6 +328,10 @@ Pods resume where `dynamo_table.json` left off; a pod whose images are all used 
 | `concurrent_monitor.py` | Real-time OpenCV desktop app — multiple pods at once, grid of live slots |
 | `app_ui.py` | Interactive desktop app (Tkinter) — pod cards with score panels, pause/hold/skip/re-scan, live tuning |
 | `farm_engine.py` | UI-independent run engine behind `app_ui.py` |
+| `llm_planner.py` / `try_llm_planner.py` | Optional AI planner with guardrails; command-line lab to try it offline |
+| `frame_source.py` | Simulated camera that derives the new frame for the closed loop (replace with a real source) |
+| `worker_planner.py` | Turns each analysis into orders for the camera/worker agents; order book, approvals, outbox, robot simulator |
+| `run_app.sh` | Linux launcher (creates `.venv`, installs pinned OpenCV 5, starts the app) |
 | `models/` | The 6 `.onnx` files `perception.py` loads |
 
 ## Running it

@@ -1,0 +1,181 @@
+{
+  "order_id": "WO-0024",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R1-L-B4",
+  "crop_type": "cabbage",
+  "trough_id": "R1-L-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-L-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R1-L-B4",
+  "rationale": "Treatment WO-0009 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 3,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Black_rot_R1-L-B4.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Cabbage-Black_rot",
+    "disease_confidence": 0.918,
+    "n_disease_detections": 6,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Cabbage-Black_rot detected at 0.92 confidence",
+    "trend": "stage unchanged (None); disease flagged 3x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T10:12:18+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Cabbage-Black_rot",
+      "confidence": 0.918,
+      "box_norm": [
+        0.2173,
+        0.4513,
+        0.19,
+        0.2109
+      ],
+      "center_norm": [
+        0.3123,
+        0.5568
+      ]
+    },
+    {
+      "class": "Cabbage-Black_rot",
+      "confidence": 0.918,
+      "box_norm": [
+        0.3518,
+        0.1608,
+        0.1545,
+        0.222
+      ],
+      "center_norm": [
+        0.429,
+        0.2718
+      ]
+    },
+    {
+      "class": "Cabbage-Black_rot",
+      "confidence": 0.915,
+      "box_norm": [
+        0.7953,
+        0.1073,
+        0.1424,
+        0.1727
+      ],
+      "center_norm": [
+        0.8665,
+        0.1936
+      ]
+    },
+    {
+      "class": "Cabbage-Black_rot",
+      "confidence": 0.864,
+      "box_norm": [
+        0.1735,
+        0.7136,
+        0.1824,
+        0.2785
+      ],
+      "center_norm": [
+        0.2647,
+        0.8528
+      ]
+    },
+    {
+      "class": "Cabbage-Black_rot",
+      "confidence": 0.85,
+      "box_norm": [
+        0.2794,
+        0.315,
+        0.1196,
+        0.1368
+      ],
+      "center_norm": [
+        0.3391,
+        0.3834
+      ]
+    },
+    {
+      "class": "Cabbage-Black_rot",
+      "confidence": 0.505,
+      "box_norm": [
+        0.0986,
+        0.8701,
+        0.1008,
+        0.0925
+      ],
+      "center_norm": [
+        0.149,
+        0.9164
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-L-B and align with pod R1-L-B4.",
+      "params": {
+        "trough": "R1-L-B",
+        "pod": "R1-L-B4",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "approved",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0009",
+  "not_before": "2026-10-04T10:12:41+00:00",
+  "created": "2026-10-04T10:12:33+00:00",
+  "updated": "2026-10-04T10:12:41+00:00",
+  "history": [
+    [
+      "2026-10-04T10:12:33+00:00",
+      "scheduled",
+      "due 2026-10-04T10:12:41+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T10:12:41+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {}
+}

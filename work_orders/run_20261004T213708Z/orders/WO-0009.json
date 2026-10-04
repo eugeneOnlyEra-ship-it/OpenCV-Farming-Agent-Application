@@ -1,0 +1,237 @@
+{
+  "order_id": "WO-0009",
+  "task": "RECAPTURE",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R1-L-B1",
+  "crop_type": "cabbage",
+  "trough_id": "R1-L-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-L-B \u00b7 back",
+  "priority": 3,
+  "title": "Re-capture R1-L-B1",
+  "rationale": "The last reading was too uncertain to act on: growth stage unclear (none, 0.00).",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Healthy_R1-L-B1.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.949,
+    "n_disease_detections": 6,
+    "n_growth_detections": 0,
+    "action": "schedule_frequent_monitoring",
+    "reason": "low-confidence read this visit (growth=0.00, disease=0.95) \u2014 re-checking sooner rather than acting on it",
+    "trend": "stage unchanged (None)",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:37:39+00:00",
+    "rail": 1
+  },
+  "targets": [],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-L-B and align with pod R1-L-B1.",
+      "params": {
+        "trough": "R1-L-B",
+        "pod": "R1-L-B1",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "ADJUST_VIEW",
+      "text": "Capture the whole plant from the side and from above.",
+      "params": {
+        "focus_regions": 0
+      }
+    },
+    {
+      "seq": 3,
+      "action": "CAPTURE",
+      "text": "Capture 3 frames (bracket exposure if the camera supports it).",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 4,
+      "action": "UPLOAD",
+      "text": "Send the frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "REQUEUE",
+      "text": "Pod is re-inspected within 4 h.",
+      "params": {
+        "revisit_hours": 4
+      }
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 5,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:37:39+00:00",
+  "updated": "2026-10-04T21:37:45+00:00",
+  "history": [
+    [
+      "2026-10-04T21:37:39+00:00",
+      "approved",
+      "no approval required by policy"
+    ],
+    [
+      "2026-10-04T21:37:39+00:00",
+      "dispatched",
+      "sent to camera_back"
+    ],
+    [
+      "2026-10-04T21:37:39+00:00",
+      "in_progress",
+      "camera_back started"
+    ],
+    [
+      "2026-10-04T21:37:43+00:00",
+      "completed",
+      "completed by simulated camera_back"
+    ],
+    [
+      "2026-10-04T21:37:45+00:00",
+      "completed",
+      "loop closed: Still uncertain after the re-capture -> escalated to a human (WO-0011)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "still_uncertain",
+    "headline": "Still uncertain after the re-capture -> escalated to a human (WO-0011)",
+    "before": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.949,
+      "n_disease_detections": 6,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.964,
+      "n_disease_detections": 6,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after_boxes": [
+      {
+        "class": "Cabbage-Healthy",
+        "confidence": 0.964,
+        "box_norm": [
+          0.3357,
+          0.0004,
+          0.6216,
+          0.4031
+        ],
+        "center_norm": [
+          0.6466,
+          0.2019
+        ]
+      },
+      {
+        "class": "Cabbage-Healthy",
+        "confidence": 0.932,
+        "box_norm": [
+          0.0164,
+          0.3789,
+          0.4108,
+          0.592
+        ],
+        "center_norm": [
+          0.2218,
+          0.6749
+        ]
+      },
+      {
+        "class": "Cabbage-Healthy",
+        "confidence": 0.898,
+        "box_norm": [
+          0.2784,
+          0.24,
+          0.544,
+          0.7404
+        ],
+        "center_norm": [
+          0.5504,
+          0.6102
+        ]
+      },
+      {
+        "class": "Cabbage-Healthy",
+        "confidence": 0.877,
+        "box_norm": [
+          0.0212,
+          -0.0002,
+          0.4129,
+          0.4405
+        ],
+        "center_norm": [
+          0.2277,
+          0.2201
+        ]
+      },
+      {
+        "class": "Cabbage-Healthy",
+        "confidence": 0.861,
+        "box_norm": [
+          0.7065,
+          0.3499,
+          0.2937,
+          0.6328
+        ],
+        "center_norm": [
+          0.8534,
+          0.6663
+        ]
+      },
+      {
+        "class": "Cabbage-Healthy",
+        "confidence": 0.856,
+        "box_norm": [
+          0.9322,
+          0.0367,
+          0.0681,
+          0.1964
+        ],
+        "center_norm": [
+          0.9662,
+          0.1349
+        ]
+      }
+    ],
+    "after_size": [
+      640,
+      640
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0009_after.jpg",
+    "frame_note": "improved contrast / lighting (CLAHE)",
+    "simulated": true,
+    "next_order": "WO-0011"
+  },
+  "aspect": "growth"
+}

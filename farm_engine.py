@@ -40,6 +40,7 @@ import os
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -48,11 +49,15 @@ from agent import DISEASE_ACTION_THRESHOLD, GROWTH_ACTION_THRESHOLD, decide_acti
 from camera import PodCamera
 from cloud_pipeline import LocalCloudClient
 from dynamo_client import LocalDynamoTable
+from frame_source import SimulatedCamera
+from llm_planner import RULE_TASK, LlmPlanner, OllamaBackend, ScriptedBackend
 from perception import CONF_THRESHOLD, MODEL_REGISTRY
 from run_logger import RunLogger
 from trend import summarize_trend
+from worker_planner import OrderBook, OrderPolicy
 
 FEEDBACK_TIMEOUT_S = 15.0
+ROBOT_DONE_DWELL_S = 3.0   # after waiting for robots, keep the finished job on screen this long
 MIN_DWELL_S = 1.2          # how long a finished pod stays on screen before the slot moves on
 ACTIONS = ["log_healthy", "flag_for_harvest", "schedule_frequent_monitoring", "flag_for_treatment"]
 
@@ -192,6 +197,16 @@ class FarmEngine:
         self.cloud = LocalCloudClient(max_concurrency=n_slots)
         self.camera = PodCamera(self.cloud)
 
+        # worker/camera agent instructions generated from each analysed image
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        self.orders = OrderBook(os.path.join("work_orders", f"run_{stamp}"), OrderPolicy(),
+                                on_change=lambda: self.events.put(("orders", None)))
+        self.orders.on_complete = self._on_order_complete
+        self.pods_by_id = {p["pod_id"]: p for p in self.pods}
+        self.frame_source = SimulatedCamera()          # swap for a real camera source (see frame_source.py)
+        self._followup_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loop")
+        self.planner_name = "rules only"
+
         self._data_lock = threading.Lock()     # history + logger + counters
         self._queue_lock = threading.Lock()
         self._queue = collections.deque(self.pods)
@@ -224,6 +239,8 @@ class FarmEngine:
     def start(self):
         self._t0 = time.time()
         self._set_state("running")
+        if self.orders.policy.simulate_robots:
+            self.orders.set_simulation(True)
         self._log("run started: %d pods, %d slot(s)" % (self.total, self.n_slots))
         for slot in self.slots:
             t = threading.Thread(target=self._worker, args=(slot,), daemon=True, name=f"slot-{slot.id}")
@@ -274,10 +291,12 @@ class FarmEngine:
         self._stop.set()
         for t in self._threads:
             t.join(timeout=FEEDBACK_TIMEOUT_S + 2)
+        self._followup_pool.shutdown(wait=True, cancel_futures=True)
         try:
             self.cloud.shutdown()
         except Exception:
             pass
+        self.orders.shutdown()
         info = self._flush()
         self._t_end = self._t_end or time.time()
         self.state = "stopped"
@@ -362,6 +381,77 @@ class FarmEngine:
         """Re-evaluates a stored reading under the CURRENT thresholds (cheap,
         pure) so the UI can show what the decision would be right now."""
         return decide_action(classification, self.settings.disease_threshold, self.settings.growth_threshold)
+
+    # ----- AI planner (optional) ------------------------------------------
+
+    def set_planner(self, kind="rules", model="llama3.2:3b", use_image=False):
+        """kind: 'rules' (no AI), 'scripted' (hand-written stand-in, NOT an LLM), 'ollama' (a real local LLM).
+        Can be changed while a run is in progress."""
+        if kind == "scripted":
+            backend = ScriptedBackend()
+        elif kind == "ollama":
+            backend = OllamaBackend(model, use_image=use_image, timeout=90)
+        else:
+            backend = None
+        self.orders.set_advisor(LlmPlanner(backend) if backend else None)
+        self.planner_name = backend.name if backend else "rules only"
+        self._log(f"planner: {self.planner_name}" + ("  (consulted for TREAT / HARVEST orders; it can only ask for a "
+                                                      "re-capture, never create or cancel work)" if backend else ""))
+
+    @staticmethod
+    def _summarize_history(rows):
+        return [{"visit": r.get("visit"), "stage": r.get("growth_stage"),
+                 "disease": r.get("disease_name") if r.get("disease_flag") else None,
+                 "disease_conf": round(float(r.get("disease_confidence", 0.0)), 2),
+                 "task_taken": RULE_TASK.get(r.get("action"), "NONE")} for r in rows[-3:]]
+
+    # ----- closing the loop ------------------------------------------------
+
+    def _on_order_complete(self, order_id):
+        try:
+            self._followup_pool.submit(self._run_followup, order_id)
+        except RuntimeError:        # pool already shut down
+            self.orders.loop_done(order_id)
+
+    def _run_followup(self, order_id):
+        """A camera order (RECAPTURE / VERIFY) just finished: take the NEW frame, run the same OpenCV analysis,
+        and let the order book decide what that changes."""
+        try:
+            self._run_followup_inner(order_id)
+        finally:
+            self.orders.loop_done(order_id)         # the pod is released only after the follow-up is analysed
+
+    def _run_followup_inner(self, order_id):
+        if self._stop.is_set():
+            return
+        o = self.orders.get(order_id)
+        pod = self.pods_by_id.get(o.pod_id) if o else None
+        if not o or not pod:
+            return
+        try:
+            frame = self.frame_source.capture(o, os.path.join(self.orders.out_dir, "frames"))
+            st = self.settings
+            rid = self.camera.capture_and_submit(o.pod_id, o.crop_type, frame["path"], conf_threshold=st.conf_threshold)
+            record = self.cloud.get_feedback(rid, block=True, timeout=FEEDBACK_TIMEOUT_S)
+            if record["status"] != "done":
+                raise RuntimeError("no feedback from the analysis pipeline")
+            cls = record["classification"]
+            dec = decide_action(cls, st.disease_threshold, st.growth_threshold)
+            res = StepResult(
+                pod_id=o.pod_id, crop_type=o.crop_type, step_index=o.evidence.get("step", 0),
+                n_steps=o.evidence.get("n_steps", 1), visit_num=0, image_path=frame["path"], classification=cls,
+                decision=dec, trend_note="", latency_s=record["latency_seconds"], worker=record["worker_thread"],
+                timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"), kind="followup", logged=False,
+                conf_threshold=st.conf_threshold, verified={"aspect": None, "expected": "", "ok": None})
+            tag = "[SIMULATED FRAME] " if frame["simulated"] else ""
+            self._log(f"loop: {order_id} ({o.task}) done -> new frame {tag}{frame['note']} -> reads: {dec['action']}")
+            out = self.orders.close_loop(order_id, pod, res, frame["note"], frame["simulated"],
+                                         history_rows=self._summarize_history(self.history.query(o.pod_id)))
+            if out:
+                bad = out["result"] in ("still_uncertain", "treatment_not_resolved")
+                self._log("  -> loop closed: " + out["headline"], "warn" if bad else "ok")
+        except Exception as exc:
+            self._log(f"loop for {order_id} failed: {exc!r}", "error")
 
     # ----- stats ---------------------------------------------------------
 
@@ -461,17 +551,41 @@ class FarmEngine:
             self._begin_pod(slot, pod)
 
         self._run_step(slot)
+        waited = self._await_orders(slot)          # the next image only after the robots are done with this one
+        hold = ROBOT_DONE_DWELL_S if waited else 0.0   # let the finished robot job stay visible for a moment
 
         with slot.lock:
             finished = slot.next_step >= slot.n_steps
             skipped = slot.skip and not finished
             slot.skip = False if skipped else slot.skip
         if finished:
-            self._finish_pod(slot, skipped=False)
+            self._finish_pod(slot, skipped=False, extra_dwell=hold)
         elif skipped:
             self._finish_pod(slot, skipped=True)
         else:
-            slot.not_before = time.time() + self.settings.delay_ms / 1000.0
+            slot.not_before = time.time() + max(self.settings.delay_ms / 1000.0, hold)
+
+    def _await_orders(self, slot):
+        """Block this lane while the robots still have work on its pod (worker jobs, camera re-captures and the
+        follow-up frame that closes the loop; NOT human reviews or later verification visits). Returns True if it
+        had to wait. 'Skip pod' releases it. In manual-approval mode this is where the lane waits for you."""
+        pod_id = slot.pod["pod_id"]
+        waited = False
+        while not self._stop.is_set():
+            if slot.skip or not self.orders.pod_busy(pod_id):
+                break
+            if not waited:
+                waited = True
+                with slot.lock:
+                    slot.status = "robot"
+                self._log(f"slot {slot.id + 1}: {pod_id} waits for the robots before its next image")
+                self._emit_slot(slot.id)
+            self._stop.wait(0.15)
+        if waited:
+            with slot.lock:
+                slot.status = "showing"
+            self._emit_slot(slot.id)
+        return waited
 
     def _begin_pod(self, slot, pod):
         n = n_steps_for(pod)
@@ -487,12 +601,13 @@ class FarmEngine:
         self._emit_slot(slot.id)
         self.events.put(("queue", None))
 
-    def _finish_pod(self, slot, skipped):
+    def _finish_pod(self, slot, skipped, extra_dwell=0.0):
         with slot.lock:
             slot.done = True
             slot.status = "skipped" if skipped else "done"
             slot.pods_completed += 1
-            slot.not_before = 0.0 if skipped else time.time() + max(MIN_DWELL_S, self.settings.delay_ms / 1000.0)
+            slot.not_before = 0.0 if skipped else time.time() + max(MIN_DWELL_S, self.settings.delay_ms / 1000.0,
+                                                                     extra_dwell)
             pod_id = slot.pod["pod_id"]
         self.pod_status[pod_id] = "skipped" if skipped else "done"
         if skipped:
@@ -562,10 +677,11 @@ class FarmEngine:
         verified = check_against_truth(pod, gt_stage, classification)
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-        trend_note, visit_num = "", 0
+        trend_note, visit_num, hist_rows = "", 0, []
         if not rescan:
             with self._data_lock:
                 prior = self.history.query(pod["pod_id"])
+                hist_rows = self._summarize_history(prior)
                 trend_note = summarize_trend(prior, classification)
                 visit_num = len(prior) + 1
                 self.history.put_item({
@@ -602,6 +718,22 @@ class FarmEngine:
             timestamp=ts, kind="rescan" if rescan else "scan", logged=not rescan,
             conf_threshold=st.conf_threshold, verified=verified,
         )
+
+        if not rescan:
+            try:      # a planner problem must never break the scanning lane
+                planned = self.orders.plan_from_result(pod, result, history_rows=hist_rows)
+            except Exception as exc:
+                planned = []
+                self._log(f"{pod['pod_id']}: could not plan robot orders: {exc!r}", "error")
+            for oid, kind in planned:
+                o = self.orders.get(oid)
+                if o and kind == "created":
+                    gate = {"awaiting_approval": "needs human approval", "planning": "asking the AI planner"}.get(
+                        o.status, "dispatched")
+                    self._log(f"  -> {o.agent} order {oid} {o.task}: {o.title} ({gate})",
+                              "warn" if o.task == "TREAT" else "info")
+                elif o and kind == "superseded":
+                    self._log(f"  -> order {oid} {o.task} superseded by a treatment order", "info")
 
         disease_bit = classification["disease_name"] if classification["disease_flag"] else "no disease"
         tag = "re-scan (not logged)" if rescan else f"image {step + 1}/{n_steps_for(pod)}"

@@ -1,2 +1,4 @@
-opencv-python>=4.5
-numpy
+# OpenCV 5 is required by the OpenCV AI Competition 2026. Versions are pinned for reproducibility.
+# (Verified: the ONNX models give identical detections on OpenCV 4.13 and 5.0.)
+opencv-python==5.0.0.93
+numpy==2.5.3

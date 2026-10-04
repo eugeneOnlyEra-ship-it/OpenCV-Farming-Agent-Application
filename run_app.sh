@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Launcher for the interactive Farm Agent app (Fedora / any Linux).
-# First run creates a local virtualenv in .venv and installs the Python deps.
+# Creates a local virtualenv (.venv) on first run and keeps its packages in sync
+# with requirements.txt (OpenCV 5) on every launch.
 set -e
 cd "$(dirname "$0")"
 
@@ -14,7 +15,8 @@ if [ ! -d .venv ]; then
     echo "Creating virtual environment (.venv) ..."
     python3 -m venv .venv
     .venv/bin/pip install --upgrade pip
-    .venv/bin/pip install -r requirements.txt
 fi
+.venv/bin/pip install -q -r requirements.txt
+echo "OpenCV $(.venv/bin/python -c 'import cv2; print(cv2.__version__)')"
 
 exec .venv/bin/python app_ui.py "$@"

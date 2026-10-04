@@ -33,6 +33,7 @@ Run:   python3 app_ui.py
 
 import base64
 import functools
+import json
 import os
 import queue
 import sys
@@ -51,6 +52,7 @@ import perception                                   # noqa: E402
 from farm_engine import (ACTIONS, FarmEngine, Settings, class_scores,   # noqa: E402
                          healthy_class)
 from pod_registry import PODS, STATION_LABELS       # noqa: E402
+from worker_planner import ALL_AGENTS, PRIORITY_LABEL   # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Look & feel
@@ -70,6 +72,8 @@ ACTION_STYLE = {   # same four colours the OpenCV banners used
 STATE_STYLE = {"idle": ("IDLE", C["dim"]), "running": ("RUNNING", C["good"]), "paused": ("PAUSED", C["warn"]),
                "finished": ("FINISHED", C["accent"]), "stopping": ("STOPPING…", C["warn"]),
                "stopped": ("STOPPED", C["dim"])}
+SHORT_ACTION = {"log_healthy": "HEALTHY", "flag_for_harvest": "HARVEST",
+                "schedule_frequent_monitoring": "MONITOR", "flag_for_treatment": "TREAT"}
 MAX_BOXES = 25
 MAX_LABELS = 6          # only the most confident few get a text label; hover shows any box
 
@@ -140,6 +144,11 @@ class Btn(tk.Label):
 
     def set_text(self, t):
         self.config(text=t)
+
+    def set_kind(self, kind):
+        self.base, self.hover = self.KINDS[kind]
+        if self.enabled:
+            self.config(bg=self.base)
 
 
 class Chip(tk.Label):
@@ -418,6 +427,130 @@ class Timeline(tk.Canvas):
 
 
 # ---------------------------------------------------------------------------
+# WorkerPanel: replaces a score panel while a robot works on that aspect of the pod
+# ---------------------------------------------------------------------------
+class WorkerPanel(tk.Frame):
+    """Same spot as 'Disease detection scores' / 'Growth detection scores'. After the scores have been shown, the
+    robot's job on that aspect takes the panel over: every step with its live state, the agent, a progress bar,
+    and (when needed) Approve / Reject. '⇄ scores' flips back to the scores while the job runs."""
+
+    def __init__(self, parent, fonts, app, kind, on_flip):
+        super().__init__(parent, bg=C["panel"], highlightthickness=2, highlightbackground=C["line"])
+        self.f, self.app, self.kind = fonts, app, kind
+        self.shown, self._sig, self._btn_sig, self._frac, self._compact = False, None, None, 0.0, False
+        head = tk.Frame(self, bg=C["panel"])
+        head.pack(fill="x", padx=10, pady=(7, 0))
+        self.title = tk.Label(head, text="WORKER", bg=C["panel"], fg=C["growth"], font=fonts["tiny_b"], anchor="w")
+        self.title.pack(side="left")
+        flip = tk.Label(head, text="⇄ scores", bg=C["panel2"], fg=C["muted"], font=fonts["tiny_b"], padx=6,
+                        cursor="hand2")
+        flip.pack(side="right")
+        flip.bind("<Button-1>", lambda e: on_flip(kind))
+        self.headline = tk.Label(self, text="", bg=C["panel"], fg=C["text"], font=fonts["small_b"], anchor="w",
+                                 justify="left", wraplength=230)
+        self.headline.pack(fill="x", padx=10)
+        self.bar = tk.Canvas(self, height=6, bg=C["line"], highlightthickness=0)
+        self.bar.pack(side="bottom", fill="x", padx=10, pady=(2, 6))
+        self.btns = tk.Frame(self, bg=C["panel"])
+        self.btns.pack(side="bottom", fill="x", padx=10)
+        self.sub = tk.Label(self, text="", bg=C["panel"], fg=C["muted"], font=fonts["small"], anchor="w",
+                            justify="left", wraplength=230)
+        self.sub.pack(fill="x", padx=10)
+        self.steps = tk.Text(self, height=3, bg=C["panel"], fg=C["text"], font=fonts["small"], bd=0,
+                             highlightthickness=0, wrap="word", state="disabled", padx=2, pady=2, cursor="arrow")
+        self.steps.pack(fill="both", expand=True, padx=8, pady=(2, 2))
+        for tag, col in (("done", C["good"]), ("todo", C["muted"]), ("act", C["text"])):
+            self.steps.tag_configure(tag, foreground=col)
+        self.steps.tag_configure("now", foreground=C["growth"], background=C["panel2"], font=fonts["small_b"])
+        self.bind("<Configure>", self._on_resize)
+        self.bar.bind("<Configure>", lambda e: self._draw_bar())
+
+    def _on_resize(self, e):
+        for w in (self.headline, self.sub):
+            w.config(wraplength=max(120, e.width - 24))
+        compact = e.height < 190
+        if compact != self._compact:
+            self._compact = compact
+            if compact:
+                self.sub.pack_forget()
+            else:
+                self.sub.pack(fill="x", padx=10, before=self.steps)
+
+    def _draw_bar(self):
+        self.bar.delete("all")
+        W = max(self.bar.winfo_width(), 10)
+        if self._frac > 0:
+            self.bar.create_rectangle(0, 0, W * min(1.0, self._frac), 6, fill=self._bar_col, outline="")
+
+    _bar_col = C["growth"]
+
+    def show(self, o):
+        eng = self.app.engine
+        sim = eng.orders.policy.simulate_robots if eng else True
+        sig = (o.order_id, o.status, o.progress, o.stale, sim)
+        if sig == self._sig:
+            return
+        self._sig = sig
+        n, st = len(o.steps), o.status
+        col = TASK_COLOR.get(o.task, C["growth"])
+        self.config(highlightbackground=col if st in ("in_progress", "dispatched", "approved") else C["line"])
+        self.title.config(text=f"{o.role.upper()} · {TASK_LABEL.get(o.task, o.task)}", fg=col)
+        self.headline.config(text=o.title)
+        sub, sc = {
+            "planning": ("🧠 The AI planner is checking this before it goes to the robot…", C["accent"]),
+            "awaiting_approval": ("⏳ Waiting for your approval — " + (o.approval_note or "approve to send it to the robot"),
+                                  C["warn"]),
+            "approved": (f"→ sent to {o.agent}, starting…", C["accent"]),
+            "dispatched": (f"→ sent to {o.agent}, starting…" + ("" if sim else " (waiting for a real agent)"),
+                           C["accent"]),
+            "in_progress": (f"▶ {o.agent} · step {min(o.progress + 1, n)}/{n}", C["growth"]),
+            "completed": (f"✓ Done by {o.agent}", C["good"]),
+            "rejected": ("✖ Rejected — nothing was done", C["muted"]),
+            "cancelled": ("Superseded by a newer order", C["muted"]),
+        }.get(st, (st, C["muted"]))
+        if o.stale:
+            sub += "   ⚠ a newer reading disagrees"
+        self.sub.config(text=sub, fg=sc)
+
+        t = self.steps
+        t.config(state="normal")
+        t.delete("1.0", "end")
+        for step in o.steps:
+            seq = step["seq"]
+            if st == "completed" or seq <= o.progress:
+                mark, tag = "✓", "done"
+            elif st == "in_progress" and seq == o.progress + 1:
+                mark, tag = "▶", "now"
+            else:
+                mark, tag = "○", "todo"
+            t.insert("end", f"{mark} {seq}. {step['action']}", ("now",) if tag == "now" else ("act",))
+            t.insert("end", f" — {step['text']}\n", (tag,))
+        t.config(state="disabled")
+        if st == "in_progress":
+            t.see(f"{min(o.progress + 1, n)}.0")
+
+        self._frac = 1.0 if st == "completed" else (o.progress / n if n else 0.0)
+        self._bar_col = C["good"] if st == "completed" else col
+        self._draw_bar()
+
+        btn_sig = (o.order_id, st, sim)
+        if btn_sig != self._btn_sig:
+            self._btn_sig = btn_sig
+            for w in self.btns.winfo_children():
+                w.destroy()
+            oid = o.order_id
+            book = lambda: self.app.engine.orders          # noqa: E731
+            if st == "awaiting_approval":
+                Btn(self.btns, "✔ Approve", lambda: book().approve(oid), "ok", self.f["tiny_b"], 10, 2).pack(
+                    side="left", padx=(0, 6), pady=(3, 3))
+                Btn(self.btns, "✖ Reject", lambda: book().reject(oid), "danger", self.f["tiny_b"], 10, 2).pack(
+                    side="left", pady=(3, 3))
+            elif st in ("approved", "dispatched", "in_progress") and not sim:
+                Btn(self.btns, "Mark done", lambda: book().complete(oid, note="marked done by human"), "ghost",
+                    self.f["tiny_b"], 10, 2).pack(side="left", pady=(3, 3))
+
+
+# ---------------------------------------------------------------------------
 # PodCard: one slot, laid out like the sketch
 # ---------------------------------------------------------------------------
 class PodCard(tk.Frame):
@@ -441,6 +574,8 @@ class PodCard(tk.Frame):
 
         foot = tk.Frame(self, bg=C["card"])
         foot.pack(side="bottom", fill="x", padx=12, pady=(4, 10))     # packed before body: never clipped
+        self.action_chip.pack(side="right", before=self.pod_label)      # repack first: never squeezed out
+        self.flag_chip.pack(side="right", padx=6, before=self.pod_label)
         body = tk.Frame(self, bg=C["card"])
         body.pack(fill="both", expand=True, padx=12)
         body.grid_columnconfigure(0 if not mirrored else 1, weight=11, uniform="c")
@@ -459,6 +594,14 @@ class PodCard(tk.Frame):
                                        lambda n: self.toggle_highlight("growth", n))
         self.disease_panel.grid(row=0, column=sc_col, sticky="nsew", pady=(0, 6))
         self.growth_panel.grid(row=1, column=sc_col, sticky="nsew", pady=(0, 2))
+        self.disease_worker = WorkerPanel(body, self.f, app, "disease", self.flip_scores)
+        self.growth_worker = WorkerPanel(body, self.f, app, "growth", self.flip_scores)
+        self.disease_worker.grid(row=0, column=sc_col, sticky="nsew", pady=(0, 6))
+        self.growth_worker.grid(row=1, column=sc_col, sticky="nsew", pady=(0, 2))
+        self.disease_worker.grid_remove()
+        self.growth_worker.grid_remove()
+        self._force = {"disease": None, "growth": None}     # '⇄ scores' pins the scores back for one order
+        self._scored_at, self._result_key = 0.0, None
 
         self.reason = tk.Label(foot, text="", bg=C["card"], fg=C["text"], font=self.f["small"], anchor="w",
                                justify="left", wraplength=500)
@@ -466,6 +609,11 @@ class PodCard(tk.Frame):
         self.trend = tk.Label(foot, text="", bg=C["card"], fg=C["muted"], font=self.f["small"], anchor="w",
                               justify="left", wraplength=500)
         self.trend.pack(fill="x")
+        self.order_label = tk.Label(foot, text="", bg=C["card"], fg=C["dim"], font=self.f["small_b"], anchor="w",
+                                    cursor="hand2")
+        self.order_label.pack(fill="x", pady=(2, 0))
+        self._order_ref = None
+        self.order_label.bind("<Button-1>", lambda e: app.open_orders(self._order_ref))
         self.foot_wrap = [self.reason, self.trend]
         foot.bind("<Configure>", lambda e: [w.config(wraplength=max(200, e.width - 4)) for w in self.foot_wrap])
 
@@ -506,6 +654,57 @@ class PodCard(tk.Frame):
         idx = v["view_index"] if v["view_index"] is not None else len(v["results"]) - 1
         return v["results"][idx]
 
+    def flip_scores(self, kind):
+        worker = self.disease_worker if kind == "disease" else self.growth_worker
+        oid = worker._sig[0] if worker._sig else None
+        self._force[kind] = None if self._force[kind] == oid else oid
+        self.refresh_worker_panels()
+
+    def refresh_worker_panels(self):
+        """After a pod's scores have been on screen for a moment, the robot job that belongs to the disease /
+        growth aspect takes over that panel (progress in detail); afterwards the scores come back."""
+        eng, v = self.app.engine, self.view
+        want = {"disease": None, "growth": None}
+        if (eng and v and v["pod"] is not None and v["view_index"] is None and v["results"]
+                and v["status"] != "inspecting" and time.time() - self._scored_at >= SCORE_VIEW_SECONDS):
+            want = eng.orders.pod_panel_orders(v["pod"]["pod_id"], WORKER_DONE_SECONDS)
+        for kind, scores, worker in (("disease", self.disease_panel, self.disease_worker),
+                                     ("growth", self.growth_panel, self.growth_worker)):
+            o = want[kind]
+            if o is not None and o.status in OPEN_ORDER_STATES and self._force[kind] == o.order_id:
+                o = None                                    # you pinned the scores for this job
+            if o is None:
+                if worker.shown:
+                    worker.grid_remove()
+                    scores.grid()
+                    worker.shown, worker._sig, worker._btn_sig = False, None, None
+            else:
+                if not worker.shown:
+                    scores.grid_remove()
+                    worker.grid()
+                    worker.shown = True
+                worker.show(o)
+
+    def refresh_orders(self):
+        """Cheap update of just the robot-task line (called on every order event)."""
+        pod = self.view["pod"] if self.view else None
+        book = self.app.engine.orders if self.app.engine else None
+        rows = book.for_pod(pod["pod_id"]) if (pod and book) else []
+        self._order_ref = rows[0][0] if rows else None
+        if not pod:
+            self.order_label.config(text="")
+        elif not rows:
+            self.order_label.config(text="🤖 no open robot task for this pod", fg=C["dim"])
+        else:
+            oid, agent, task, status, prog, n, stale, _, action = rows[0]
+            more = f"  (+{len(rows) - 1} more)" if len(rows) > 1 else ""
+            if status == "in_progress":       # live: progress bar + the step being carried out right now
+                state = f"{'▰' * prog}{'▱' * (n - prog)}  step {min(prog + 1, n)}/{n}: {action}"
+            else:
+                state = order_status_text(status, prog, n, stale, task)
+            self.order_label.config(text=f"🤖 {agent} · {task} {oid} — {state}{more}   ▸ open",
+                                    fg=C["growth"] if status == "in_progress" else ORDER_STATUS[status][1])
+
     # --- rendering -------------------------------------------------------
     def render(self, view):
         self.view = view
@@ -528,6 +727,9 @@ class PodCard(tk.Frame):
             for b in (self.hold_btn, self.skip_btn, self.scan_btn):
                 b.set_enabled(False)
             self.hold_btn.set_text("⏸ Hold pod")
+            self._result_key = None
+            self.refresh_orders()
+            self.refresh_worker_panels()
             return
 
         pod = view["pod"]
@@ -535,6 +737,12 @@ class PodCard(tk.Frame):
         self.meta_label.config(text=f"{pod['crop_type']} · rail {pod['rail']} · station "
                                     f"{STATION_LABELS[pod['station']]} · {pod['side']}")
         res = self._current_result()
+        key = (res.pod_id, res.step_index, res.kind, res.timestamp) if res is not None else None
+        if key != self._result_key:                       # a new reading: scores first, robot panel after a moment
+            self._result_key = key
+            if key is not None:
+                self._scored_at = time.time()
+            self._force = {"disease": None, "growth": None}
         busy = view["status"] == "inspecting"
         reviewing = view["view_index"] is not None
 
@@ -560,6 +768,8 @@ class PodCard(tk.Frame):
             self.flag_chip.set("REVIEWING", C["accent"])
         elif res is not None and res.kind == "rescan":
             self.flag_chip.set("RE-SCAN · NOT LOGGED", C["panel2"], C["muted"])
+        elif view["status"] == "robot":
+            self.flag_chip.set("🤖 ROBOT WORKING", C["growth"], "#111")
         elif view["status"] == "skipped":
             self.flag_chip.set("SKIPPED", C["panel2"], C["muted"])
         elif view["done"]:
@@ -578,6 +788,8 @@ class PodCard(tk.Frame):
             self.reason.config(text="")
             self.trend.config(text="")
             self.config(highlightbackground=C["line"])
+            self.refresh_orders()
+            self.refresh_worker_panels()
             return
 
         st = eng.settings
@@ -636,6 +848,8 @@ class PodCard(tk.Frame):
         meta = f"{res.latency_s:.2f}s · {res.worker} · sensitivity {res.conf_threshold:.2f}"
         trend = res.trend_note if res.kind == "scan" else "re-scan: not written to history or log"
         self.trend.config(text=f"{trend}   ·   {meta}")
+        self.refresh_orders()
+        self.refresh_worker_panels()
 
 
 # ---------------------------------------------------------------------------
@@ -693,6 +907,432 @@ class ZoomWindow(tk.Toplevel):
 
 
 # ---------------------------------------------------------------------------
+# Robot orders: instructions for the camera + worker agents
+# ---------------------------------------------------------------------------
+ORDER_STATUS = {   # label, colour
+    "planning": ("AI planner thinking…", C["accent"]),
+    "awaiting_approval": ("needs your approval", C["warn"]),
+    "approved": ("approved", C["good"]),
+    "dispatched": ("dispatched", C["accent"]),
+    "in_progress": ("in progress", C["growth"]),
+    "completed": ("done", C["good"]),
+    "rejected": ("rejected", C["dim"]),
+    "cancelled": ("superseded", C["dim"]),
+    "scheduled": ("scheduled", C["muted"]),
+}
+TASK_COLOR = {"TREAT": "#dc2828", "HARVEST": "#e6960a", "RECAPTURE": C["accent"], "VERIFY": C["muted"],
+              "REVIEW": "#a855f7", "REPLANT": C["good"]}
+TASK_LABEL = {"TREAT": "TREATMENT", "HARVEST": "HARVEST", "REPLANT": "REPLANTING", "RECAPTURE": "RE-CAPTURE",
+              "VERIFY": "TREATMENT CHECK"}
+SCORE_VIEW_SECONDS = 1.8     # the scores stay up this long before the robot's progress takes their panel over
+WORKER_DONE_SECONDS = 3.0    # a finished robot job stays visible this long
+OPEN_ORDER_STATES = {"planning", "awaiting_approval", "approved", "dispatched", "in_progress"}
+VERDICT_COLOR = {"agreed": C["good"], "downgraded": C["warn"], "rejected": C["muted"], "fallback": C["muted"]}
+LOOP_GOOD = {"resolved_healthy", "confirmed_disease", "confirmed_harvest", "treatment_worked"}
+
+
+def order_status_text(status, progress=0, n_steps=0, stale=False, task=""):
+    if status == "in_progress":
+        txt = f"step {min(progress + 1, n_steps)}/{n_steps}"
+    elif task == "REVIEW" and status == "awaiting_approval":
+        txt = "needs your review"
+    else:
+        txt = ORDER_STATUS[status][0]
+    return txt + ("  ⚠ stale" if stale else "")
+
+
+class OrdersWindow(tk.Toplevel):
+    """Everything the four robot agents are being told to do, why, and what a
+    human still has to approve. Live-updating."""
+
+    def __init__(self, app):
+        super().__init__(app, bg=C["bg"])
+        self.app, f = app, app.fonts
+        self.title("Robot orders — camera & worker agents")
+        self.geometry("1320x900+50+30")
+        self.minsize(1000, 620)
+        self._ver, self._selected, self._book_id, self._orders = -1, None, None, {}
+
+        # ---- the four agents
+        strip = tk.Frame(self, bg=C["bg"])
+        strip.pack(fill="x", padx=12, pady=(10, 6))
+        self.tiles = {}
+        for i, agent in enumerate(ALL_AGENTS):
+            role, side = agent.split("_")
+            box = tk.Frame(strip, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+            box.grid(row=0, column=i, sticky="ew", padx=4)
+            strip.grid_columnconfigure(i, weight=1, uniform="ag")
+            tk.Label(box, text=f"{side.upper()} SIDE · {role.upper()} AGENT", bg=C["panel"],
+                     fg=C["accent"] if role == "camera" else C["harvest"], font=f["tiny_b"], anchor="w"
+                     ).pack(fill="x", padx=10, pady=(8, 0))
+            status = tk.Label(box, text="idle", bg=C["panel"], fg=C["text"], font=f["small_b"], anchor="w")
+            status.pack(fill="x", padx=10)
+            bar = tk.Canvas(box, height=6, bg=C["line"], highlightthickness=0)
+            bar.pack(fill="x", padx=10, pady=(4, 8))
+            self.tiles[agent] = (status, bar)
+
+        # ---- toolbar
+        tb = tk.Frame(self, bg=C["bg"])
+        tb.pack(fill="x", padx=12, pady=(2, 6))
+        self.approve_btn = Btn(tb, "✔ Approve", self.approve, "ok", f["small_b"], 12, 5)
+        self.reject_btn = Btn(tb, "✖ Reject", self.reject, "danger", f["small_b"], 12, 5)
+        self.all_btn = Btn(tb, "✔✔ Approve all pending", self.approve_all, "primary", f["small_b"], 12, 5)
+        self.done_btn = Btn(tb, "Mark done", self.mark_done, "ghost", f["small_b"], 12, 5)
+        self.copy_btn = Btn(tb, "Copy JSON", self.copy_json, "ghost", f["small_b"], 12, 5)
+        for b in (self.approve_btn, self.reject_btn, self.all_btn, self.done_btn, self.copy_btn):
+            b.pack(side="left", padx=(0, 6))
+        pol = app.engine.orders.policy
+        self.sim_var = tk.BooleanVar(value=pol.simulate_robots)
+        self.loop_var = tk.BooleanVar(value=pol.close_the_loop)
+        self.auto_btn = Btn(tb, "", app.toggle_auto, "ok", f["small_b"], 12, 5)
+        self.auto_btn.pack(side="right", padx=(8, 0))
+        for txt, var, cmd in (("Close the loop", self.loop_var, self.toggle_loop),
+                              ("Simulate robots", self.sim_var, self.toggle_sim)):
+            tk.Checkbutton(tb, text=txt, variable=var, command=cmd, bg=C["bg"], fg=C["text"], selectcolor=C["panel2"],
+                           activebackground=C["bg"], activeforeground=C["text"], font=f["small"]
+                           ).pack(side="right", padx=8)
+
+        # ---- list + detail
+        main = tk.Frame(self, bg=C["bg"])
+        main.pack(fill="both", expand=True, padx=12, pady=(0, 6))
+        main.grid_columnconfigure(0, weight=5, uniform="m")
+        main.grid_columnconfigure(1, weight=6, uniform="m")
+        main.grid_rowconfigure(0, weight=1)
+        left = tk.Frame(main, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self.tree = ttk.Treeview(left, columns=("pod", "agent", "task", "prio", "status"), selectmode="browse")
+        for col, text, w in (("#0", "Order", 96), ("pod", "Pod", 74), ("agent", "Agent", 104), ("task", "Task", 96),
+                             ("prio", "Priority", 70), ("status", "Status", 150)):
+            self.tree.heading(col, text=text)
+            self.tree.column(col, width=w, stretch=(col == "status"))
+        sb = ttk.Scrollbar(left, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self.tree.pack(fill="both", expand=True, padx=(6, 0), pady=6)
+        for st, (_, col) in ORDER_STATUS.items():
+            self.tree.tag_configure(st, foreground=col)
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+
+        right = tk.Frame(main, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        right.grid(row=0, column=1, sticky="nsew")
+        self.d_title = tk.Label(right, text="Select an order", bg=C["panel"], fg=C["text"], font=f["title"],
+                                anchor="w", justify="left")
+        self.d_title.pack(fill="x", padx=12, pady=(10, 2))
+        chips = tk.Frame(right, bg=C["panel"])
+        chips.pack(fill="x", padx=12)
+        self.c_status, self.c_task, self.c_prio = Chip(chips, f["tiny_b"]), Chip(chips, f["tiny_b"]), Chip(chips, f["tiny_b"])
+        for c in (self.c_task, self.c_status, self.c_prio):
+            c.pack(side="left", padx=(0, 6))
+        self.d_where = tk.Label(right, text="", bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w")
+        self.d_where.pack(fill="x", padx=12, pady=(4, 0))
+        self.d_why = tk.Label(right, text="", bg=C["panel"], fg=C["text"], font=f["small"], anchor="w", justify="left")
+        self.d_why.pack(fill="x", padx=12, pady=(2, 0))
+        self.d_gate = tk.Label(right, text="", bg=C["panel"], fg=C["warn"], font=f["small_b"], anchor="w", justify="left")
+        self.d_gate.pack(fill="x", padx=12, pady=(2, 4))
+        right.bind("<Configure>", lambda e: [w.config(wraplength=max(200, e.width - 28))
+                                             for w in (self.d_title, self.d_why, self.d_gate, self.d_human, self.d_ai,
+                                                       self.d_outcome)])
+        self.d_ai = tk.Label(right, text="", bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w", justify="left")
+        self.d_ai.pack(fill="x", padx=12, pady=(0, 4))
+        imgs = tk.Frame(right, bg=C["panel"])
+        imgs.pack(fill="x", padx=12, pady=(0, 6))
+        imgs.grid_columnconfigure(0, weight=1, uniform="im")
+        imgs.grid_columnconfigure(1, weight=1, uniform="im")
+        self.imgs = imgs
+        self.img = ImageView(imgs, f)
+        self.img.config(height=190)
+        self.img.grid(row=0, column=0, sticky="ew")
+        self.img_after = ImageView(imgs, f)
+        self.img_after.config(height=190)
+        self.img_after.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        self.img_after.grid_remove()
+        self.d_outcome = tk.Label(right, text="", bg=C["panel"], fg=C["muted"], font=f["small_b"], anchor="w",
+                                  justify="left")
+        self.d_outcome.pack(fill="x", padx=12, pady=(0, 4))
+        tk.Label(right, text="INSTRUCTIONS FOR THE AGENT", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=12)
+        self.steps = tk.Text(right, height=7, bg=C["panel2"], fg=C["text"], font=f["small"], bd=0, highlightthickness=0,
+                             wrap="word", state="disabled", padx=8, pady=6)
+        self.steps.pack(fill="both", expand=True, padx=12, pady=(2, 6))
+        for tag, col in (("done", C["good"]), ("now", C["growth"]), ("todo", C["muted"]), ("act", C["text"])):
+            self.steps.tag_configure(tag, foreground=col)
+        self.d_human = tk.Label(right, text="", bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w", justify="left")
+        self.d_human.pack(fill="x", padx=12, pady=(0, 10))
+
+        self.foot = tk.Label(self, text="", bg=C["bg"], fg=C["dim"], font=f["tiny"], anchor="w")
+        self.foot.pack(fill="x", padx=14, pady=(0, 8))
+        self.after(250, self._poll)
+
+    # --- selection / actions -------------------------------------------------
+    def select(self, order_id):
+        if self.tree.exists(order_id):
+            self.tree.selection_set(order_id)
+            self.tree.see(order_id)
+
+    def _on_select(self, _e=None):
+        sel = self.tree.selection()
+        self._selected = sel[0] if sel else None
+        self._show()
+
+    def _book(self):
+        return self.app.engine.orders if self.app.engine else None
+
+    def approve(self):
+        b = self._book()
+        if b and self._selected:
+            b.approve(self._selected)
+
+    def reject(self):
+        b = self._book()
+        if b and self._selected:
+            b.reject(self._selected)
+
+    def approve_all(self):
+        b = self._book()
+        if b:
+            n = b.approve_all_pending()
+            self.app._log_line(f"approved {n} order(s)", "ok")
+
+    def mark_done(self):
+        b = self._book()
+        if b and self._selected:
+            b.complete(self._selected, note="marked done by human")
+
+    def copy_json(self):
+        o = self._orders.get(self._selected)
+        if o:
+            self.clipboard_clear()
+            self.clipboard_append(json.dumps(o.to_dict(), indent=2))
+            self.app._log_line(f"{o.order_id} copied to clipboard as JSON", "ok")
+
+    def toggle_loop(self):
+        b = self._book()
+        if b:
+            b.policy.close_the_loop = self.loop_var.get()
+
+    def toggle_sim(self):
+        b = self._book()
+        if b:
+            b.set_simulation(self.sim_var.get())
+
+    # --- live refresh -----------------------------------------------------------
+    def _poll(self):
+        if not self.winfo_exists():
+            return
+        b = self._book()
+        if b is not None:
+            if id(b) != self._book_id:          # a new run started: start clean
+                self._book_id, self._ver, self._selected = id(b), -1, None
+                self.tree.delete(*self.tree.get_children())
+                self.sim_var.set(b.policy.simulate_robots)
+                self.loop_var.set(b.policy.close_the_loop)
+                self.foot.config(text=f"Orders, outbox and trace are saved in  {b.out_dir}/")
+            if b.version != self._ver:
+                self._ver = b.version
+                self._refresh_list(b)
+            self._update_fleet(b)
+            self._update_buttons(b)
+        self.after(250, self._poll)
+
+    def _refresh_list(self, book):
+        orders = book.list_orders()
+        self._orders = {o.order_id: o for o in orders}
+        have = set(self.tree.get_children())
+        for i, o in enumerate(orders):
+            vals = (o.pod_id, o.agent, o.task, PRIORITY_LABEL[o.priority],
+                    order_status_text(o.status, o.progress, len(o.steps), o.stale, o.task))
+            if o.order_id in have:
+                self.tree.item(o.order_id, values=vals, tags=(o.status,))
+            else:
+                self.tree.insert("", "end", iid=o.order_id, text=o.order_id, values=vals, tags=(o.status,))
+            self.tree.move(o.order_id, "", i)
+        for gone in have - set(self._orders):
+            self.tree.delete(gone)
+        self._show()
+
+    def _show(self):
+        o = self._orders.get(self._selected)
+        if not o:
+            self.d_title.config(text="Select an order")
+            for c in (self.c_status, self.c_task, self.c_prio):
+                c.config(text="", bg=C["panel"])
+            self.d_where.config(text="")
+            self.d_why.config(text="Instructions for the camera and worker agents appear here as images are analysed.")
+            self.d_gate.config(text="")
+            self.d_human.config(text="")
+            self.d_ai.config(text="")
+            self.d_outcome.config(text="")
+            self.img_after.grid_remove()
+            self.img.set_content(None, [])
+            self._set_steps([])
+            return
+        label, col = ORDER_STATUS[o.status]
+        self.d_title.config(text=f"{o.order_id} · {o.title}")
+        self.c_task.set(o.task, TASK_COLOR[o.task])
+        self.c_status.set(order_status_text(o.status, o.progress, len(o.steps), o.stale, o.task).upper(), col,
+                          "#111" if o.status in ("awaiting_approval",) else "white")
+        self.c_prio.set(f"{PRIORITY_LABEL[o.priority]} PRIORITY", C["panel2"], C["muted"])
+        self.d_where.config(text=f"{o.agent}  ·  {o.location}  ·  " + (f"visit {o.evidence['visit']}" if o.evidence["visit"] else "follow-up frame")
+                                 + (f"  ·  seen {o.occurrences}×" if o.occurrences > 1 else "")
+                                 + (f"  ·  follow-up of {o.follow_up_of}" if o.follow_up_of else ""))
+        why = "Why: " + o.rationale
+        if o.stale:
+            why += "\n⚠ A newer reading contradicts this order — review before approving."
+        self.d_why.config(text=why)
+        self.d_gate.config(text=("✋ " + o.approval_note) if o.approval_note and o.status == "awaiting_approval" else "")
+        w, h = o.evidence["image_size"]
+        dets = [{"box": (t["box_norm"][0] * w, t["box_norm"][1] * h, t["box_norm"][2] * w, t["box_norm"][3] * h),
+                 "class_name": t["class"], "confidence": t["confidence"]} for t in o.targets]
+        try:
+            self.img.set_content(load_bgr(o.evidence["image"]),
+                                 [{"dets": dets, "color": TASK_COLOR[o.task]}], f"{len(dets)} TARGET REGION(S)")
+        except FileNotFoundError:
+            self.img.set_content(None, [])
+        if o.ai:
+            prop = o.ai.get("proposal")
+            txt = f"🧠 AI planner ({o.ai['backend']}): {o.ai['verdict'].upper()} — {o.ai['why']}"
+            if prop and prop.get("reason"):
+                txt += f"\n     it said: “{prop['reason']}”  [wanted {prop['task']}, urgency {prop['urgency']}]"
+            self.d_ai.config(text=txt, fg=VERDICT_COLOR.get(o.ai["verdict"], C["muted"]))
+        else:
+            self.d_ai.config(text="")
+        oc = o.outcome
+        if oc:
+            try:
+                aw, ah = oc["after_size"]
+                adets = [{"box": (t["box_norm"][0] * aw, t["box_norm"][1] * ah, t["box_norm"][2] * aw,
+                                  t["box_norm"][3] * ah), "class_name": t["class"], "confidence": t["confidence"]}
+                         for t in oc["after_boxes"]]
+                self.img_after.set_content(load_bgr(oc["frame"]), [{"dets": adets, "color": C["accent"]}],
+                                           "NEW FRAME" + (" · SIMULATED" if oc["simulated"] else ""))
+                self.img_after.grid()
+            except FileNotFoundError:
+                self.img_after.grid_remove()
+            self.d_outcome.config(
+                text=f"🔁 LOOP RESULT: {oc['headline']}\n     new frame: {oc['frame_note']}"
+                     + ("   (SIMULATED frame — see README)" if oc["simulated"] else ""),
+                fg=C["good"] if oc["result"] in LOOP_GOOD else C["warn"])
+        else:
+            self.img_after.grid_remove()
+            self.d_outcome.config(text="")
+        self._set_steps([(s["seq"], s["action"], s["text"]) for s in o.steps], o.progress, o.status)
+        self.d_human.config(text=("FOR THE HUMAN:\n• " + "\n• ".join(o.human_notes)) if o.human_notes else "")
+
+    def _set_steps(self, steps, progress=0, status=""):
+        t = self.steps
+        t.config(state="normal")
+        t.delete("1.0", "end")
+        for seq, action, text in steps:
+            if status == "completed" or seq <= progress:
+                mark, tag = "✓", "done"
+            elif status == "in_progress" and seq == progress + 1:
+                mark, tag = "▶", "now"
+            else:
+                mark, tag = "○", "todo"
+            t.insert("end", f"{mark} {seq}. ", tag)
+            t.insert("end", f"{action}  ", ("act",))
+            t.insert("end", text + "\n", tag if tag != "todo" else "todo")
+        t.config(state="disabled")
+
+    def _update_fleet(self, book):
+        fleet = book.fleet
+        waiting = {a: sum(1 for o in self._orders.values() if o.agent == a and o.status == "dispatched")
+                   for a in ALL_AGENTS}
+        for agent, (label, bar) in self.tiles.items():
+            bar.delete("all")
+            if fleet is None:
+                label.config(text=f"external agent · {waiting[agent]} waiting" if waiting[agent] else "external agent · no orders",
+                             fg=C["muted"])
+                continue
+            st = fleet.state[agent]
+            q = fleet.queue_len(agent)
+            if st["status"] == "busy":
+                label.config(text=f"{st['order']} · step {st['step'] + 1}/{st['n']}" + (f"  (+{q} queued)" if q else ""),
+                             fg=C["growth"])
+                W = max(bar.winfo_width(), 10)
+                bar.create_rectangle(0, 0, W * (st["step"] + 1) / max(1, st["n"]), 6, fill=C["growth"], outline="")
+            else:
+                label.config(text="idle" + (f"  ({q} queued)" if q else ""), fg=C["muted"])
+
+    def _update_buttons(self, book):
+        o = self._orders.get(self._selected)
+        st = o.status if o else ""
+        self.approve_btn.set_text("▶ Run now" if st == "scheduled" else
+                                  ("✔ Mark reviewed" if o and o.task == "REVIEW" else "✔ Approve"))
+        self.approve_btn.set_enabled(st in ("awaiting_approval", "scheduled"))
+        self.reject_btn.set_enabled(st in ("awaiting_approval", "scheduled"))
+        self.done_btn.set_enabled(st in ("dispatched", "in_progress", "approved") and not book.policy.simulate_robots)
+        self.copy_btn.set_enabled(o is not None)
+        self.app.style_auto_button(self.auto_btn)
+        n = book.pending_robot_count()
+        self.all_btn.set_text(f"✔✔ Approve all robot jobs ({n})")
+        self.all_btn.set_enabled(n > 0)
+
+
+# ---------------------------------------------------------------------------
+# FleetStrip: the four robot agents, always visible in the main window
+# ---------------------------------------------------------------------------
+class FleetStrip(tk.Frame):
+    """Live view of what each agent is doing, so you can watch automatic mode without opening Robot orders.
+    Click a tile to jump to that order."""
+
+    def __init__(self, parent, app):
+        super().__init__(parent, bg=C["bg"])
+        self.app, f = app, app.fonts
+        self.f = f
+        self.tiles, self._ref = {}, {}
+        for i, agent in enumerate(ALL_AGENTS):
+            role, side = agent.split("_")
+            box = tk.Frame(self, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"], cursor="hand2")
+            box.grid(row=0, column=i, sticky="ew", padx=3)
+            self.grid_columnconfigure(i, weight=1, uniform="fleet")
+            head = tk.Label(box, text=f"{side.upper()} SIDE · {role.upper()}", bg=C["panel"], anchor="w",
+                            fg=C["accent"] if role == "camera" else C["harvest"], font=f["tiny_b"])
+            head.pack(fill="x", padx=8, pady=(5, 0))
+            status = tk.Label(box, text="idle", bg=C["panel"], fg=C["muted"], anchor="w", font=f["small"])
+            status.pack(fill="x", padx=8)
+            bar = tk.Canvas(box, height=5, bg=C["line"], highlightthickness=0)
+            bar.pack(fill="x", padx=8, pady=(2, 6))
+            self.tiles[agent] = (box, status, bar)
+            for w in (box, head, status, bar):
+                w.bind("<Button-1>", lambda e, a=agent: self.app.open_orders(self._ref.get(a)))
+
+    def update_status(self, st):
+        for agent, (box, label, bar) in self.tiles.items():
+            bar.delete("all")
+            info = st.get(agent) if st else None
+            self._ref[agent] = None
+            if not info:
+                label.config(text="idle", fg=C["dim"])
+                box.config(highlightbackground=C["line"])
+                continue
+            act, extra = info["active"], []
+            if info["queued"]:
+                extra.append(f"+{info['queued']}")
+            if info["awaiting"]:
+                extra.append(f"⏳{info['awaiting']}")
+            tail = ("   " + "  ·  ".join(extra)) if extra else ""
+            if act:
+                self._ref[agent] = act["order_id"]
+                label.config(text=f"{act['order_id']} {act['task']} {act['pod']} · {act['step']}/{act['n']} "
+                                  f"{act['action']}{tail}", fg=C["growth"])
+                box.config(highlightbackground=C["growth"])
+                W = max(bar.winfo_width(), 10)
+                bar.create_rectangle(0, 0, W * act["step"] / max(1, act["n"]), 5, fill=C["growth"], outline="")
+            elif info["awaiting"] or info["queued"]:
+                label.config(text=("waiting" + tail).strip(), fg=C["warn"] if info["awaiting"] else C["muted"])
+                box.config(highlightbackground=C["warn"] if info["awaiting"] else C["line"])
+            elif info["last_done"]:
+                d = info["last_done"]
+                self._ref[agent] = d["order_id"]
+                label.config(text=f"✓ done: {d['order_id']} {d['task']} {d['pod']}", fg=C["good"])
+                box.config(highlightbackground=C["line"])
+            else:
+                label.config(text="idle", fg=C["dim"])
+                box.config(highlightbackground=C["line"])
+
+
+# ---------------------------------------------------------------------------
 # The application window
 # ---------------------------------------------------------------------------
 class App(tk.Tk):
@@ -712,11 +1352,15 @@ class App(tk.Tk):
         }
         self._style()
         self.engine = None
+        self._orders_win = None
+        self.auto_approve = True          # master switch: robot orders approved + executed automatically
         self.cards = []
         self.settings = Settings()
         self.state = "idle"
         self._build_toolbar()
         self._build_summary()
+        self.fleet_strip = FleetStrip(self, self)
+        self.fleet_strip.pack(fill="x", padx=9, pady=(2, 2))
         self._build_body()
         self._build_cards()
         self._fill_queue_preview()
@@ -762,31 +1406,11 @@ class App(tk.Tk):
         for b in (self.start_btn, self.pause_btn, self.step_btn, self.stop_btn):
             b.pack(side="left", padx=3)
         self.save_btn.pack(side="left", padx=(14, 3))
-
-        cfg = tk.Frame(bar, bg=C["panel"])
-        cfg.pack(side="right", padx=12)
-        def lbl(t):
-            return tk.Label(cfg, text=t, bg=C["panel"], fg=C["muted"], font=f["small"])
-        lbl("Crop").pack(side="left", padx=(0, 4))
-        self.crop_var = tk.StringVar(value="all")
-        self.crop_cb = ttk.Combobox(cfg, textvariable=self.crop_var, values=["all", "cabbage", "lettuce", "mushroom"],
-                                    width=9, state="readonly")
-        self.crop_cb.pack(side="left", padx=(0, 12))
-        self.crop_cb.bind("<<ComboboxSelected>>", lambda e: self._fill_queue_preview())
-        lbl("Pods (0 = all)").pack(side="left", padx=(0, 4))
-        self.pods_var = tk.StringVar(value="0")
-        self.pods_sp = ttk.Spinbox(cfg, from_=0, to=72, width=4, textvariable=self.pods_var, command=self._fill_queue_preview)
-        self.pods_sp.pack(side="left", padx=(0, 12))
-        lbl("Pods on screen").pack(side="left", padx=(0, 4))
-        self.slots_var = tk.StringVar(value="2")
-        self.slots_sp = ttk.Spinbox(cfg, from_=1, to=4, width=3, textvariable=self.slots_var, state="readonly",
-                                    command=self._build_cards)
-        self.slots_sp.pack(side="left", padx=(0, 12))
-        self.reset_var = tk.BooleanVar(value=False)
-        self.reset_cb = tk.Checkbutton(cfg, text="Reset history", variable=self.reset_var, bg=C["panel"], fg=C["muted"],
-                                       selectcolor=C["panel2"], activebackground=C["panel"], activeforeground=C["text"],
-                                       font=f["small"])
-        self.reset_cb.pack(side="left")
+        self.orders_btn = Btn(bar, "🤖 Robot orders", self.open_orders, "ghost", f["norm_b"])
+        self.orders_btn.pack(side="left", padx=3)
+        self.auto_btn = Btn(bar, "", self.toggle_auto, "ok", f["norm_b"])
+        self.auto_btn.pack(side="left", padx=3)
+        self.style_auto_button(self.auto_btn)
 
     # --- summary strip ---------------------------------------------------
     def _build_summary(self):
@@ -805,7 +1429,7 @@ class App(tk.Tk):
         for a in ACTIONS:
             label, col = ACTION_STYLE[a]
             chip = Chip(right, f["small_b"])
-            chip.set(f"{label}  0", col)
+            chip.set(f"{SHORT_ACTION[a]}  0", col)
             chip.pack(side="left", padx=3)
             self.action_chips[a] = chip
         self.acc_chip = Chip(right, f["small_b"])
@@ -825,11 +1449,41 @@ class App(tk.Tk):
         side.grid_propagate(False)
         side.pack_propagate(False)
 
+        setup = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        setup.pack(fill="x", pady=(0, 8))
+        tk.Label(setup, text="RUN SETUP", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                 ).grid(row=0, column=0, columnspan=4, sticky="w", padx=10, pady=(8, 2))
+
+        def lbl(text, r, c):
+            tk.Label(setup, text=text, bg=C["panel"], fg=C["muted"], font=f["small"]).grid(
+                row=r, column=c, sticky="w", padx=(10, 4), pady=2)
+        lbl("Crop", 1, 0)
+        self.crop_var = tk.StringVar(value="all")
+        self.crop_cb = ttk.Combobox(setup, textvariable=self.crop_var, values=["all", "cabbage", "lettuce", "mushroom"],
+                                    width=9, state="readonly")
+        self.crop_cb.grid(row=1, column=1, columnspan=3, sticky="ew", padx=(0, 10), pady=2)
+        self.crop_cb.bind("<<ComboboxSelected>>", lambda e: self._fill_queue_preview())
+        lbl("Pods (0=all)", 2, 0)
+        self.pods_var = tk.StringVar(value="0")
+        self.pods_sp = ttk.Spinbox(setup, from_=0, to=72, width=3, textvariable=self.pods_var,
+                                   command=self._fill_queue_preview)
+        self.pods_sp.grid(row=2, column=1, sticky="w", pady=2)
+        lbl("On screen", 2, 2)
+        self.slots_var = tk.StringVar(value="2")
+        self.slots_sp = ttk.Spinbox(setup, from_=1, to=4, width=3, textvariable=self.slots_var, state="readonly",
+                                    command=self._build_cards)
+        self.slots_sp.grid(row=2, column=3, sticky="w", padx=(0, 8), pady=2)
+        self.reset_var = tk.BooleanVar(value=False)
+        self.reset_cb = tk.Checkbutton(setup, text="Reset history", variable=self.reset_var, bg=C["panel"],
+                                       fg=C["muted"], selectcolor=C["panel2"], activebackground=C["panel"],
+                                       activeforeground=C["text"], font=f["small"])
+        self.reset_cb.grid(row=3, column=0, columnspan=4, sticky="w", padx=(6, 0), pady=(2, 8))
+
         qbox = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         qbox.pack(fill="both", expand=True)
         tk.Label(qbox, text="POD QUEUE", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
                  ).pack(fill="x", padx=10, pady=(8, 2))
-        self.tree = ttk.Treeview(qbox, columns=("crop", "status"), height=10, selectmode="browse")
+        self.tree = ttk.Treeview(qbox, columns=("crop", "status"), height=3, selectmode="browse")
         self.tree.heading("#0", text="Pod")
         self.tree.heading("crop", text="Crop")
         self.tree.heading("status", text="Status")
@@ -849,6 +1503,33 @@ class App(tk.Tk):
         self.drop_btn = Btn(qbtn, "✕ Drop from run", self.queue_drop, "ghost", f["small_b"], 10, 5)
         self.next_btn.pack(side="left", padx=(0, 6))
         self.drop_btn.pack(side="left")
+
+        plan = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        plan.pack(fill="x", pady=(0, 8))
+        tk.Label(plan, text="AI PLANNER (OPTIONAL)", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=10, pady=(8, 2))
+        self.planner_var = tk.StringVar(value="Rules only")
+        self.planner_cb = ttk.Combobox(plan, textvariable=self.planner_var, state="readonly",
+                                       values=["Rules only", "Scripted demo (not an LLM)", "Local LLM via Ollama"])
+        self.planner_cb.pack(fill="x", padx=10)
+        self.planner_cb.bind("<<ComboboxSelected>>", lambda e: self._planner_changed())
+        mrow = tk.Frame(plan, bg=C["panel"])
+        mrow.pack(fill="x", padx=10, pady=(4, 0))
+        self.model_var = tk.StringVar(value="llama3.2:3b")
+        self.model_entry = tk.Entry(mrow, textvariable=self.model_var, width=16, bg=C["panel2"], fg=C["text"],
+                                    insertbackground=C["text"], relief="flat", font=f["small"])
+        self.model_entry.pack(side="left", fill="x", expand=True)
+        self.model_entry.bind("<Return>", lambda e: self._planner_changed())
+        self.model_entry.bind("<FocusOut>", lambda e: self._planner_changed())
+        self.pimg_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(mrow, text="send photo", variable=self.pimg_var, command=self._planner_changed, bg=C["panel"],
+                       fg=C["text"], selectcolor=C["panel2"], activebackground=C["panel"],
+                       activeforeground=C["text"], font=f["small"]).pack(side="left", padx=(6, 0))
+        self.planner_note = tk.Label(plan, text="Rule table decides. An AI planner can only ask for a better look.",
+                                     bg=C["panel"], fg=C["dim"], font=f["tiny"], justify="left", anchor="w",
+                                     wraplength=270)
+        self.planner_note.pack(fill="x", padx=10, pady=(3, 8))
+        self.model_entry.config(state="disabled")
 
         tune = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         tune.pack(fill="x")
@@ -973,6 +1654,21 @@ class App(tk.Tk):
             if not self.engine.skip_queued(sel[0]):
                 self._log_line("only queued pods can be dropped (use ⏭ Skip pod on a running one)", "warn")
 
+    # --- AI planner ------------------------------------------------------
+    def _planner_kind(self):
+        return {"Rules only": "rules", "Scripted demo (not an LLM)": "scripted",
+                "Local LLM via Ollama": "ollama"}[self.planner_var.get()]
+
+    def _planner_changed(self):
+        kind = self._planner_kind()
+        self.model_entry.config(state="normal" if kind == "ollama" else "disabled")
+        notes = {"rules": "Rule table decides. An AI planner can only ask for a better look.",
+                 "scripted": "Hand-written stand-in for testing the wiring. It is NOT an LLM.",
+                 "ollama": "Needs Ollama running locally (ollama.com). Runs offline; if it is down, rules are kept."}
+        self.planner_note.config(text=notes[kind])
+        if self.engine and self.state in ("running", "paused", "finished"):
+            self.engine.set_planner(kind, self.model_var.get().strip() or "llama3.2:3b", self.pimg_var.get())
+
     # --- tuning ----------------------------------------------------------
     def _settings_changed(self):
         s = self.settings
@@ -1022,7 +1718,11 @@ class App(tk.Tk):
         self.tree.delete(*self.tree.get_children())
         for p in pods:
             self.tree.insert("", "end", iid=p["pod_id"], text=p["pod_id"], values=(p["crop_type"], "queued"), tags=("queued",))
+        self.engine.orders.policy.auto_approve_all = self.auto_approve
         self.engine.start()
+        if self._planner_kind() != "rules":
+            self.engine.set_planner(self._planner_kind(), self.model_var.get().strip() or "llama3.2:3b",
+                                    self.pimg_var.get())
         self._refresh_queue()
 
     def toggle_pause(self):
@@ -1047,6 +1747,37 @@ class App(tk.Tk):
             return
         info = self.engine._flush()
         self._log_line(f"log saved: {info['csv']}", "ok")
+
+    def style_auto_button(self, btn):
+        if self.auto_approve:
+            btn.set_text("⚡ Auto-approve: ON")
+            btn.set_kind("ok")
+        else:
+            btn.set_text("✋ Manual approval")
+            btn.set_kind("warn")
+
+    def toggle_auto(self):
+        """Master switch. ON: every robot order is approved and executed automatically. OFF: orders created from
+        now on wait for you. (Escalations to a human are always manual.)"""
+        self.auto_approve = not self.auto_approve
+        self.style_auto_button(self.auto_btn)
+        if self.engine:
+            self.engine.orders.set_auto_approve_all(self.auto_approve)
+        self._log_line("auto-approve ON: new robot orders are approved and run automatically" if self.auto_approve
+                       else "MANUAL approval: new robot orders will wait for you in 🤖 Robot orders",
+                       "ok" if self.auto_approve else "warn")
+
+    def open_orders(self, select=None):
+        if not self.engine:
+            self._log_line("start a run first - robot orders are created from the analysed images", "warn")
+            return
+        w = self._orders_win
+        if w is None or not w.winfo_exists():
+            self._orders_win = w = OrdersWindow(self)
+        w.deiconify()
+        w.lift()
+        if select:
+            w.after(300, lambda: w.select(select))
 
     # per-slot controls
     def hold(self, i):
@@ -1099,7 +1830,7 @@ class App(tk.Tk):
     def _pump(self):
         eng = self.engine
         if eng:
-            slots, queue_dirty = set(), False
+            slots, queue_dirty, orders_dirty = set(), False, False
             try:
                 while True:
                     kind, payload = eng.events.get_nowait()
@@ -1107,6 +1838,8 @@ class App(tk.Tk):
                         slots.add(payload)
                     elif kind == "queue":
                         queue_dirty = True
+                    elif kind == "orders":
+                        orders_dirty = True
                     elif kind == "log":
                         self._log_line(payload[2], payload[1], payload[0])
                     elif kind == "state":
@@ -1123,6 +1856,10 @@ class App(tk.Tk):
                     self.cards[i].render(eng.slot_view(i))
             if queue_dirty:
                 self._refresh_queue()
+            if orders_dirty:
+                for c in self.cards:
+                    c.refresh_orders()
+                    c.refresh_worker_panels()
         self.after(80, self._pump)
 
     def _announce(self, info, title):
@@ -1143,9 +1880,15 @@ class App(tk.Tk):
                 text=f"{st['pods_done']}/{st['total']} pods  ·  {st['steps']} scans  ·  {m:02d}:{s:02d} elapsed  ·  "
                      f"{st['avg_latency']:.2f}s avg inference")
             for a, chip in self.action_chips.items():
-                chip.config(text=f"{ACTION_STYLE[a][0]}  {st['actions'][a]}")
+                chip.config(text=f"{SHORT_ACTION[a]}  {st['actions'][a]}")
             g, d = st["growth"], st["disease"]
             self.acc_chip.set(f"growth {g[0]}/{g[1]}   disease {d[0]}/{d[1]}", C["panel2"], C["text"])
+            self.fleet_strip.update_status(eng.orders.fleet_status())
+            for c in self.cards:
+                c.refresh_worker_panels()
+            pending = eng.orders.pending_count()
+            self.orders_btn.set_text("🤖 Robot orders" + (f" · {pending} to approve" if pending else ""))
+            self.orders_btn.set_kind("warn" if pending else "ghost")
         self.after(250, self._tick)
 
     def on_close(self):

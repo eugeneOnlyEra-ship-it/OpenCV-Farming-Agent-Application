@@ -1,0 +1,260 @@
+{
+  "order_id": "WO-0101",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R3-L-B4",
+  "crop_type": "cabbage",
+  "trough_id": "R3-L-B",
+  "side": "back",
+  "location": "rail 3 \u00b7 trough R3-L-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R3-L-B4",
+  "rationale": "Treatment WO-0100 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 3,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Bacterial_leaf_spot_R3-L-B4.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Cabbage-Bacterial_leaf_spot",
+    "disease_confidence": 0.946,
+    "n_disease_detections": 11,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Cabbage-Bacterial_leaf_spot detected at 0.95 confidence",
+    "trend": "stage unchanged (None); disease flagged 3x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:42:44+00:00",
+    "rail": 3
+  },
+  "targets": [
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.946,
+      "box_norm": [
+        0.3348,
+        0.5747,
+        0.0813,
+        0.1554
+      ],
+      "center_norm": [
+        0.3755,
+        0.6524
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.903,
+      "box_norm": [
+        0.3394,
+        0.4189,
+        0.0714,
+        0.1251
+      ],
+      "center_norm": [
+        0.3751,
+        0.4814
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.859,
+      "box_norm": [
+        0.4234,
+        0.2751,
+        0.0611,
+        0.2038
+      ],
+      "center_norm": [
+        0.454,
+        0.377
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.855,
+      "box_norm": [
+        0.4557,
+        0.6564,
+        0.1127,
+        0.1012
+      ],
+      "center_norm": [
+        0.512,
+        0.707
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.843,
+      "box_norm": [
+        0.4944,
+        0.4736,
+        0.1453,
+        0.1471
+      ],
+      "center_norm": [
+        0.567,
+        0.5472
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.821,
+      "box_norm": [
+        0.4419,
+        0.0927,
+        0.0956,
+        0.1493
+      ],
+      "center_norm": [
+        0.4897,
+        0.1673
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.783,
+      "box_norm": [
+        0.2138,
+        0.6864,
+        0.094,
+        0.1753
+      ],
+      "center_norm": [
+        0.2608,
+        0.774
+      ]
+    },
+    {
+      "class": "Cabbage-Bacterial_leaf_spot",
+      "confidence": 0.775,
+      "box_norm": [
+        0.6322,
+        0.5233,
+        0.0623,
+        0.0524
+      ],
+      "center_norm": [
+        0.6634,
+        0.5495
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R3-L-B and align with pod R3-L-B4.",
+      "params": {
+        "trough": "R3-L-B",
+        "pod": "R3-L-B4",
+        "side": "back",
+        "rail": 3
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0100",
+  "not_before": "2026-10-04T21:42:57+00:00",
+  "created": "2026-10-04T21:42:49+00:00",
+  "updated": "2026-10-04T21:43:40+00:00",
+  "history": [
+    [
+      "2026-10-04T21:42:49+00:00",
+      "scheduled",
+      "due 2026-10-04T21:42:57+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T21:42:57+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-04T21:42:57+00:00",
+      "dispatched",
+      "sent to camera_back"
+    ],
+    [
+      "2026-10-04T21:42:57+00:00",
+      "in_progress",
+      "camera_back started"
+    ],
+    [
+      "2026-10-04T21:43:00+00:00",
+      "completed",
+      "completed by simulated camera_back"
+    ],
+    [
+      "2026-10-04T21:43:40+00:00",
+      "completed",
+      "loop closed: Treatment verified: disease reading 0.95 -> 0.00 (11 -> 0 boxes), below the action threshold"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_worked",
+    "headline": "Treatment verified: disease reading 0.95 -> 0.00 (11 -> 0 boxes), below the action threshold",
+    "before": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": true,
+      "disease_name": "Cabbage-Bacterial_leaf_spot",
+      "disease_confidence": 0.946,
+      "n_disease_detections": 11,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.0,
+      "n_disease_detections": 0,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after_boxes": [],
+    "after_size": [
+      640,
+      640
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0101_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 8 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": ""
+  },
+  "aspect": "disease"
+}

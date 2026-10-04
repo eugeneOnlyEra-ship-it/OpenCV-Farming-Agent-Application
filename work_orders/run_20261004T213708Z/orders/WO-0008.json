@@ -1,0 +1,121 @@
+{
+  "order_id": "WO-0008",
+  "task": "REPLANT",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R1-L-F4",
+  "crop_type": "cabbage",
+  "trough_id": "R1-L-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-L-F \u00b7 front",
+  "priority": 2,
+  "title": "Replant cabbage at R1-L-F4",
+  "rationale": "Harvest WO-0006 finished: the pod is empty, so start the next crop.",
+  "evidence": {
+    "visit": 5,
+    "step": 1,
+    "n_steps": 2,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/traj_cabbage_R1-L-F4_S9.jpg",
+    "image_size": [
+      320,
+      320
+    ],
+    "growth_stage": "S9",
+    "growth_confidence": 0.666,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.284,
+    "n_disease_detections": 2,
+    "n_growth_detections": 3,
+    "action": "flag_for_harvest",
+    "reason": "cabbage at S9 (0.67 confidence)",
+    "trend": "stage unchanged (S9)",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:37:24+00:00",
+    "rail": 1
+  },
+  "targets": [],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-L-F and align with pod R1-L-F4.",
+      "params": {
+        "trough": "R1-L-F",
+        "pod": "R1-L-F4",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CLEAR_POD",
+      "text": "Remove remaining roots, stalks and old substrate; bag and seal them.",
+      "params": {}
+    },
+    {
+      "seq": 3,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool and the pod before planting.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "PLANT",
+      "text": "Plant a new cabbage seedling in R1-L-F4.",
+      "params": {
+        "crop": "cabbage"
+      }
+    },
+    {
+      "seq": 5,
+      "action": "WATER_FEED",
+      "text": "Water / feed with the pod's standard recipe.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion; the pod restarts at the first growth stage.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [
+    "This pod's growth history is NOT reset automatically - reset it when the new crop is in (see README)."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0006",
+  "not_before": "",
+  "created": "2026-10-04T21:37:30+00:00",
+  "updated": "2026-10-04T21:37:40+00:00",
+  "history": [
+    [
+      "2026-10-04T21:37:30+00:00",
+      "approved",
+      "no approval required by policy"
+    ],
+    [
+      "2026-10-04T21:37:30+00:00",
+      "dispatched",
+      "sent to worker_front"
+    ],
+    [
+      "2026-10-04T21:37:35+00:00",
+      "in_progress",
+      "worker_front started"
+    ],
+    [
+      "2026-10-04T21:37:40+00:00",
+      "completed",
+      "completed by simulated worker_front"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "growth"
+}

@@ -1,0 +1,429 @@
+{
+  "order_id": "WO-0013",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R1-L-B2",
+  "crop_type": "cabbage",
+  "trough_id": "R1-L-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-L-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R1-L-B2",
+  "rationale": "Treatment WO-0010 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Alternaria_leaf_spot_R1-L-B2.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Cabbage-Alternaria_leaf_spot",
+    "disease_confidence": 0.918,
+    "n_disease_detections": 85,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Cabbage-Alternaria_leaf_spot detected at 0.92 confidence",
+    "trend": "stage unchanged (None); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:37:44+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.918,
+      "box_norm": [
+        0.2569,
+        0.6016,
+        0.0562,
+        0.0592
+      ],
+      "center_norm": [
+        0.285,
+        0.6312
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.882,
+      "box_norm": [
+        0.2336,
+        0.4402,
+        0.0397,
+        0.0815
+      ],
+      "center_norm": [
+        0.2534,
+        0.481
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.87,
+      "box_norm": [
+        0.2513,
+        0.1003,
+        0.028,
+        0.0423
+      ],
+      "center_norm": [
+        0.2653,
+        0.1214
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.861,
+      "box_norm": [
+        0.486,
+        0.1018,
+        0.0276,
+        0.0419
+      ],
+      "center_norm": [
+        0.4998,
+        0.1227
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.858,
+      "box_norm": [
+        0.1312,
+        0.4317,
+        0.0601,
+        0.0992
+      ],
+      "center_norm": [
+        0.1612,
+        0.4813
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.852,
+      "box_norm": [
+        0.2787,
+        0.752,
+        0.0646,
+        0.0627
+      ],
+      "center_norm": [
+        0.311,
+        0.7833
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.846,
+      "box_norm": [
+        0.2719,
+        0.1837,
+        0.0581,
+        0.0793
+      ],
+      "center_norm": [
+        0.3009,
+        0.2234
+      ]
+    },
+    {
+      "class": "Cabbage-Alternaria_leaf_spot",
+      "confidence": 0.826,
+      "box_norm": [
+        0.3395,
+        0.102,
+        0.0355,
+        0.0741
+      ],
+      "center_norm": [
+        0.3572,
+        0.1391
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-L-B and align with pod R1-L-B2.",
+      "params": {
+        "trough": "R1-L-B",
+        "pod": "R1-L-B2",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0010",
+  "not_before": "2026-10-04T21:37:57+00:00",
+  "created": "2026-10-04T21:37:49+00:00",
+  "updated": "2026-10-04T21:38:03+00:00",
+  "history": [
+    [
+      "2026-10-04T21:37:49+00:00",
+      "scheduled",
+      "due 2026-10-04T21:37:57+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T21:37:57+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-04T21:37:57+00:00",
+      "dispatched",
+      "sent to camera_back"
+    ],
+    [
+      "2026-10-04T21:37:57+00:00",
+      "in_progress",
+      "camera_back started"
+    ],
+    [
+      "2026-10-04T21:38:01+00:00",
+      "completed",
+      "completed by simulated camera_back"
+    ],
+    [
+      "2026-10-04T21:38:03+00:00",
+      "completed",
+      "loop closed: Still flagged after treatment (0.92 -> 0.85) -> escalated to a human (WO-0018)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_not_resolved",
+    "headline": "Still flagged after treatment (0.92 -> 0.85) -> escalated to a human (WO-0018)",
+    "before": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": true,
+      "disease_name": "Cabbage-Alternaria_leaf_spot",
+      "disease_confidence": 0.918,
+      "n_disease_detections": 85,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": true,
+      "disease_name": "Cabbage-Alternaria_leaf_spot",
+      "disease_confidence": 0.855,
+      "n_disease_detections": 71,
+      "action": "flag_for_treatment"
+    },
+    "after_boxes": [
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.855,
+        "box_norm": [
+          0.5088,
+          0.3411,
+          0.0251,
+          0.0431
+        ],
+        "center_norm": [
+          0.5213,
+          0.3627
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.854,
+        "box_norm": [
+          0.381,
+          0.3786,
+          0.0313,
+          0.0671
+        ],
+        "center_norm": [
+          0.3966,
+          0.4122
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.824,
+        "box_norm": [
+          0.5434,
+          0.3509,
+          0.0507,
+          0.1235
+        ],
+        "center_norm": [
+          0.5687,
+          0.4127
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.823,
+        "box_norm": [
+          0.4414,
+          0.3389,
+          0.0369,
+          0.0639
+        ],
+        "center_norm": [
+          0.4598,
+          0.3709
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.815,
+        "box_norm": [
+          0.438,
+          0.1655,
+          0.0309,
+          0.0803
+        ],
+        "center_norm": [
+          0.4535,
+          0.2057
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.813,
+        "box_norm": [
+          0.1562,
+          0.3022,
+          0.0313,
+          0.0549
+        ],
+        "center_norm": [
+          0.1719,
+          0.3297
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.799,
+        "box_norm": [
+          0.4227,
+          0.4713,
+          0.0552,
+          0.06
+        ],
+        "center_norm": [
+          0.4504,
+          0.5013
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.796,
+        "box_norm": [
+          0.6894,
+          0.127,
+          0.0639,
+          0.071
+        ],
+        "center_norm": [
+          0.7214,
+          0.1625
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.788,
+        "box_norm": [
+          0.2358,
+          0.9179,
+          0.0623,
+          0.0595
+        ],
+        "center_norm": [
+          0.2669,
+          0.9476
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.783,
+        "box_norm": [
+          0.3278,
+          0.2772,
+          0.0381,
+          0.0513
+        ],
+        "center_norm": [
+          0.3468,
+          0.3029
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.778,
+        "box_norm": [
+          0.4526,
+          0.8696,
+          0.0301,
+          0.0543
+        ],
+        "center_norm": [
+          0.4677,
+          0.8967
+        ]
+      },
+      {
+        "class": "Cabbage-Alternaria_leaf_spot",
+        "confidence": 0.773,
+        "box_norm": [
+          0.7423,
+          0.3332,
+          0.0362,
+          0.0475
+        ],
+        "center_norm": [
+          0.7604,
+          0.357
+        ]
+      }
+    ],
+    "after_size": [
+      640,
+      640
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0013_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 8 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": "WO-0018"
+  },
+  "aspect": "disease"
+}

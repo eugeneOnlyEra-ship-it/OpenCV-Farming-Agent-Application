@@ -1,0 +1,247 @@
+{
+  "order_id": "WO-0054",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R2-L-B1",
+  "crop_type": "cabbage",
+  "trough_id": "R2-L-B",
+  "side": "back",
+  "location": "rail 2 \u00b7 trough R2-L-B \u00b7 back",
+  "priority": 1,
+  "title": "Treat Downy mildew on R2-L-B1",
+  "rationale": "Downy mildew detected at 0.95 confidence (15 detections) -> foliar fungal / mildew disease playbook.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Downy_mildew_R2-L-B1.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Cabbage-Downy_mildew",
+    "disease_confidence": 0.951,
+    "n_disease_detections": 15,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Cabbage-Downy_mildew detected at 0.95 confidence",
+    "trend": "stage unchanged (None); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:40:08+00:00",
+    "rail": 2
+  },
+  "targets": [
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.951,
+      "box_norm": [
+        0.2879,
+        0.1406,
+        0.1092,
+        0.3213
+      ],
+      "center_norm": [
+        0.3425,
+        0.3013
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.918,
+      "box_norm": [
+        0.4861,
+        0.436,
+        0.0815,
+        0.1933
+      ],
+      "center_norm": [
+        0.5268,
+        0.5327
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.879,
+      "box_norm": [
+        0.6699,
+        0.7252,
+        0.0652,
+        0.1092
+      ],
+      "center_norm": [
+        0.7025,
+        0.7798
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.813,
+      "box_norm": [
+        0.2202,
+        0.6236,
+        0.0626,
+        0.2877
+      ],
+      "center_norm": [
+        0.2514,
+        0.7675
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.753,
+      "box_norm": [
+        0.6276,
+        0.4466,
+        0.0403,
+        0.1027
+      ],
+      "center_norm": [
+        0.6477,
+        0.4979
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.72,
+      "box_norm": [
+        0.3977,
+        0.3878,
+        0.0488,
+        0.1932
+      ],
+      "center_norm": [
+        0.4221,
+        0.4844
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.717,
+      "box_norm": [
+        0.2207,
+        0.2128,
+        0.0468,
+        0.1203
+      ],
+      "center_norm": [
+        0.244,
+        0.273
+      ]
+    },
+    {
+      "class": "Cabbage-Downy_mildew",
+      "confidence": 0.701,
+      "box_norm": [
+        0.1195,
+        0.3345,
+        0.032,
+        0.213
+      ],
+      "center_norm": [
+        0.1354,
+        0.441
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R2-L-B and align with pod R2-L-B1.",
+      "params": {
+        "trough": "R2-L-B",
+        "pod": "R2-L-B1",
+        "side": "back",
+        "rail": 2
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 8 target region(s) from the vision analysis (strongest: 0.95).",
+      "params": {
+        "n_targets": 8
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REMOVE_TISSUE",
+      "text": "Remove affected leaves at the target regions.",
+      "params": {
+        "mode": "targets"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "BAG_AND_SEAL",
+      "text": "Bag and seal everything removed; nothing is left in the trough.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "APPLY_TREATMENT",
+      "text": "Apply the human-selected fungicide to the treated area only (product chosen at approval).",
+      "params": {
+        "product": "HUMAN_SELECTED",
+        "area": "targets"
+      }
+    },
+    {
+      "seq": 6,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 7,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Removes plant material and applies a fungicide - a human must approve.",
+  "human_notes": [
+    "Widespread symptoms (15 detections): decide whether to treat or remove the whole plant.",
+    "Choose a fungicide approved for this crop and follow its label (product and dose are the human's call).",
+    "Check airflow and leaf wetness around this pod."
+  ],
+  "status": "completed",
+  "progress": 7,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:40:08+00:00",
+  "updated": "2026-10-04T21:40:14+00:00",
+  "history": [
+    [
+      "2026-10-04T21:40:08+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ],
+    [
+      "2026-10-04T21:40:08+00:00",
+      "dispatched",
+      "sent to worker_back"
+    ],
+    [
+      "2026-10-04T21:40:08+00:00",
+      "in_progress",
+      "worker_back started"
+    ],
+    [
+      "2026-10-04T21:40:14+00:00",
+      "completed",
+      "completed by simulated worker_back"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

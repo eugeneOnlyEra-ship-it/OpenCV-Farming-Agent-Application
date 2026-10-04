@@ -1,0 +1,192 @@
+{
+  "order_id": "WO-0111",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_front",
+  "pod_id": "R3-M-F2",
+  "crop_type": "lettuce",
+  "trough_id": "R3-M-F",
+  "side": "front",
+  "location": "rail 3 \u00b7 trough R3-M-F \u00b7 front",
+  "priority": 3,
+  "title": "Verify treatment on R3-M-F2",
+  "rationale": "Treatment WO-0109 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 0,
+    "step": 2,
+    "n_steps": 3,
+    "image": "work_orders/run_20261004T213708Z/frames/WO-0104_after.jpg",
+    "image_size": [
+      573,
+      627
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.924,
+    "disease_flag": true,
+    "disease_name": "Powdery_mildew_on_lettuce",
+    "disease_confidence": 0.824,
+    "n_disease_detections": 2,
+    "n_growth_detections": 1,
+    "action": "flag_for_treatment",
+    "reason": "Powdery_mildew_on_lettuce detected at 0.82 confidence",
+    "trend": "",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:43:41+00:00",
+    "rail": 3,
+    "frame_source": "zoomed x3.0 on the suspected region"
+  },
+  "targets": [
+    {
+      "class": "Powdery_mildew_on_lettuce",
+      "confidence": 0.824,
+      "box_norm": [
+        0.0066,
+        0.0032,
+        0.8086,
+        0.6553
+      ],
+      "center_norm": [
+        0.4109,
+        0.3309
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R3-M-F and align with pod R3-M-F2.",
+      "params": {
+        "trough": "R3-M-F",
+        "pod": "R3-M-F2",
+        "side": "front",
+        "rail": 3
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0109",
+  "not_before": "2026-10-04T21:43:56+00:00",
+  "created": "2026-10-04T21:43:48+00:00",
+  "updated": "2026-10-04T21:44:04+00:00",
+  "history": [
+    [
+      "2026-10-04T21:43:48+00:00",
+      "scheduled",
+      "due 2026-10-04T21:43:56+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T21:43:56+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-04T21:43:56+00:00",
+      "dispatched",
+      "sent to camera_front"
+    ],
+    [
+      "2026-10-04T21:43:56+00:00",
+      "in_progress",
+      "camera_front started"
+    ],
+    [
+      "2026-10-04T21:43:59+00:00",
+      "completed",
+      "completed by simulated camera_front"
+    ],
+    [
+      "2026-10-04T21:44:04+00:00",
+      "completed",
+      "loop closed: Treatment verified: disease reading 0.82 -> 0.83 (2 -> 1 boxes), below the action threshold"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_worked",
+    "headline": "Treatment verified: disease reading 0.82 -> 0.83 (2 -> 1 boxes), below the action threshold",
+    "before": {
+      "growth_stage": "stage 04- Harvest stage",
+      "growth_confidence": 0.924,
+      "disease_flag": true,
+      "disease_name": "Powdery_mildew_on_lettuce",
+      "disease_confidence": 0.824,
+      "n_disease_detections": 2,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": "stage 04- Harvest stage",
+      "growth_confidence": 0.922,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.828,
+      "n_disease_detections": 1,
+      "action": "flag_for_harvest"
+    },
+    "after_boxes": [
+      {
+        "class": "healthy",
+        "confidence": 0.828,
+        "box_norm": [
+          0.2485,
+          0.8081,
+          0.6546,
+          0.1919
+        ],
+        "center_norm": [
+          0.5758,
+          0.9041
+        ]
+      },
+      {
+        "class": "stage 04- Harvest stage",
+        "confidence": 0.922,
+        "box_norm": [
+          0.0569,
+          0.716,
+          0.9341,
+          0.2842
+        ],
+        "center_norm": [
+          0.524,
+          0.858
+        ]
+      }
+    ],
+    "after_size": [
+      573,
+      627
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0111_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 1 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": ""
+  },
+  "aspect": "disease"
+}

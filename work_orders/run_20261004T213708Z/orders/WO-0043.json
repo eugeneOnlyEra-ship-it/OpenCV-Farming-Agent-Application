@@ -1,0 +1,373 @@
+{
+  "order_id": "WO-0043",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R1-R-B3",
+  "crop_type": "mushroom",
+  "trough_id": "R1-R-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-R-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R1-R-B3",
+  "rationale": "Treatment WO-0041 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/mushroom_disease_Dry_Bubble_R1-R-B3.jpg",
+    "image_size": [
+      224,
+      224
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Dry Bubble",
+    "disease_confidence": 0.749,
+    "n_disease_detections": 17,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Dry Bubble detected at 0.75 confidence",
+    "trend": "stage unchanged (None); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:39:21+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.749,
+      "box_norm": [
+        0.0085,
+        0.8544,
+        0.1175,
+        0.1461
+      ],
+      "center_norm": [
+        0.0672,
+        0.9275
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.747,
+      "box_norm": [
+        0.2673,
+        0.7047,
+        0.1583,
+        0.1622
+      ],
+      "center_norm": [
+        0.3465,
+        0.7858
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.708,
+      "box_norm": [
+        0.0651,
+        0.1455,
+        0.1539,
+        0.1632
+      ],
+      "center_norm": [
+        0.1421,
+        0.2271
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.691,
+      "box_norm": [
+        0.7471,
+        0.8671,
+        0.1148,
+        0.1316
+      ],
+      "center_norm": [
+        0.8045,
+        0.9329
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.67,
+      "box_norm": [
+        0.3383,
+        0.8719,
+        0.1648,
+        0.1272
+      ],
+      "center_norm": [
+        0.4207,
+        0.9355
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.641,
+      "box_norm": [
+        0.174,
+        0.2665,
+        0.2523,
+        0.2601
+      ],
+      "center_norm": [
+        0.3001,
+        0.3966
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.573,
+      "box_norm": [
+        0.0,
+        0.1451,
+        0.0715,
+        0.1566
+      ],
+      "center_norm": [
+        0.0358,
+        0.2235
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.56,
+      "box_norm": [
+        0.5128,
+        0.6812,
+        0.2671,
+        0.1532
+      ],
+      "center_norm": [
+        0.6464,
+        0.7578
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-R-B and align with pod R1-R-B3.",
+      "params": {
+        "trough": "R1-R-B",
+        "pod": "R1-R-B3",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0041",
+  "not_before": "2026-10-04T21:39:34+00:00",
+  "created": "2026-10-04T21:39:26+00:00",
+  "updated": "2026-10-04T21:39:39+00:00",
+  "history": [
+    [
+      "2026-10-04T21:39:26+00:00",
+      "scheduled",
+      "due 2026-10-04T21:39:34+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T21:39:34+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-04T21:39:34+00:00",
+      "dispatched",
+      "sent to camera_back"
+    ],
+    [
+      "2026-10-04T21:39:34+00:00",
+      "in_progress",
+      "camera_back started"
+    ],
+    [
+      "2026-10-04T21:39:37+00:00",
+      "completed",
+      "completed by simulated camera_back"
+    ],
+    [
+      "2026-10-04T21:39:39+00:00",
+      "completed",
+      "loop closed: Still flagged after treatment (0.75 -> 0.66) -> escalated to a human (WO-0048)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_not_resolved",
+    "headline": "Still flagged after treatment (0.75 -> 0.66) -> escalated to a human (WO-0048)",
+    "before": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": true,
+      "disease_name": "Dry Bubble",
+      "disease_confidence": 0.749,
+      "n_disease_detections": 17,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": true,
+      "disease_name": "Dry Bubble",
+      "disease_confidence": 0.655,
+      "n_disease_detections": 8,
+      "action": "flag_for_treatment"
+    },
+    "after_boxes": [
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.655,
+        "box_norm": [
+          0.8403,
+          0.5476,
+          0.1597,
+          0.3616
+        ],
+        "center_norm": [
+          0.9201,
+          0.7284
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.613,
+        "box_norm": [
+          0.2944,
+          0.249,
+          0.2636,
+          0.2594
+        ],
+        "center_norm": [
+          0.4262,
+          0.3787
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.491,
+        "box_norm": [
+          0.5467,
+          0.2514,
+          0.1648,
+          0.1782
+        ],
+        "center_norm": [
+          0.6291,
+          0.3405
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.429,
+        "box_norm": [
+          0.0003,
+          0.6095,
+          0.2424,
+          0.186
+        ],
+        "center_norm": [
+          0.1215,
+          0.7025
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.377,
+        "box_norm": [
+          0.4593,
+          0.0096,
+          0.1486,
+          0.1158
+        ],
+        "center_norm": [
+          0.5336,
+          0.0675
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.326,
+        "box_norm": [
+          0.666,
+          0.3697,
+          0.1623,
+          0.1362
+        ],
+        "center_norm": [
+          0.7471,
+          0.4378
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.305,
+        "box_norm": [
+          0.0001,
+          0.0862,
+          0.1962,
+          0.1544
+        ],
+        "center_norm": [
+          0.0982,
+          0.1634
+        ]
+      },
+      {
+        "class": "Dry Bubble",
+        "confidence": 0.304,
+        "box_norm": [
+          0.4318,
+          0.4373,
+          0.469,
+          0.2124
+        ],
+        "center_norm": [
+          0.6662,
+          0.5435
+        ]
+      }
+    ],
+    "after_size": [
+      224,
+      224
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0043_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 8 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": "WO-0048"
+  },
+  "aspect": "disease"
+}

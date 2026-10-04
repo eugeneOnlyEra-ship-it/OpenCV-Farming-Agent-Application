@@ -1,0 +1,140 @@
+{
+  "order_id": "WO-0063",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R2-L-B4",
+  "crop_type": "cabbage",
+  "trough_id": "R2-L-B",
+  "side": "back",
+  "location": "rail 2 \u00b7 trough R2-L-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R2-L-B4",
+  "rationale": "Treatment WO-0059 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Ringspot_R2-L-B4.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Cabbage-Ringspot",
+    "disease_confidence": 0.958,
+    "n_disease_detections": 4,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Cabbage-Ringspot detected at 0.96 confidence",
+    "trend": "stage unchanged (None); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:40:23+00:00",
+    "rail": 2
+  },
+  "targets": [
+    {
+      "class": "Cabbage-Ringspot",
+      "confidence": 0.958,
+      "box_norm": [
+        0.5019,
+        0.171,
+        0.2664,
+        0.2748
+      ],
+      "center_norm": [
+        0.6352,
+        0.3084
+      ]
+    },
+    {
+      "class": "Cabbage-Ringspot",
+      "confidence": 0.927,
+      "box_norm": [
+        0.3693,
+        0.3438,
+        0.163,
+        0.2581
+      ],
+      "center_norm": [
+        0.4507,
+        0.4728
+      ]
+    },
+    {
+      "class": "Cabbage-Ringspot",
+      "confidence": 0.91,
+      "box_norm": [
+        0.7509,
+        0.8007,
+        0.1171,
+        0.1421
+      ],
+      "center_norm": [
+        0.8094,
+        0.8717
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R2-L-B and align with pod R2-L-B4.",
+      "params": {
+        "trough": "R2-L-B",
+        "pod": "R2-L-B4",
+        "side": "back",
+        "rail": 2
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "approved",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0059",
+  "not_before": "2026-10-04T21:40:38+00:00",
+  "created": "2026-10-04T21:40:30+00:00",
+  "updated": "2026-10-04T21:40:38+00:00",
+  "history": [
+    [
+      "2026-10-04T21:40:30+00:00",
+      "scheduled",
+      "due 2026-10-04T21:40:38+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T21:40:38+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

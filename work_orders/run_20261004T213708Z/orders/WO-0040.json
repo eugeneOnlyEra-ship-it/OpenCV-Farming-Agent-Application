@@ -1,0 +1,93 @@
+{
+  "order_id": "WO-0040",
+  "task": "REVIEW",
+  "role": "human",
+  "agent": "human",
+  "pod_id": "R1-R-F4",
+  "crop_type": "mushroom",
+  "trough_id": "R1-R-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-R-F \u00b7 front",
+  "priority": 1,
+  "title": "Human review needed: R1-R-F4",
+  "rationale": "The re-capture did not settle the reading (still low confidence).",
+  "evidence": {
+    "visit": 0,
+    "step": 0,
+    "n_steps": 1,
+    "image": "work_orders/run_20261004T213708Z/frames/WO-0037_after.jpg",
+    "image_size": [
+      360,
+      390
+    ],
+    "growth_stage": "Harvest",
+    "growth_confidence": 0.877,
+    "disease_flag": true,
+    "disease_name": "Bacterial Blotch",
+    "disease_confidence": 0.428,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "schedule_frequent_monitoring",
+    "reason": "low-confidence read this visit (growth=0.88, disease=0.43) \u2014 re-checking sooner rather than acting on it",
+    "trend": "",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:39:19+00:00",
+    "rail": 1,
+    "frame_source": "follow-up frame"
+  },
+  "targets": [
+    {
+      "class": "Bacterial Blotch",
+      "confidence": 0.428,
+      "box_norm": [
+        -0.0032,
+        0.0316,
+        0.3373,
+        0.3831
+      ],
+      "center_norm": [
+        0.1654,
+        0.2231
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "HUMAN_INSPECT",
+      "text": "Look at pod R1-R-F4 (in person or on the attached photo).",
+      "params": {
+        "pod": "R1-R-F4"
+      }
+    },
+    {
+      "seq": 2,
+      "action": "HUMAN_DECIDE",
+      "text": "Decide: treat, harvest, re-capture again, or leave it. Create the order yourself if needed.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "The automatic loop could not settle this case - a human decision is needed.",
+  "human_notes": [
+    "Two looks were not enough for the model: please inspect this pod yourself."
+  ],
+  "status": "awaiting_approval",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0037",
+  "not_before": "",
+  "created": "2026-10-04T21:39:19+00:00",
+  "updated": "2026-10-04T21:39:19+00:00",
+  "history": [
+    [
+      "2026-10-04T21:39:19+00:00",
+      "awaiting_approval",
+      "waiting for a human decision"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": ""
+}

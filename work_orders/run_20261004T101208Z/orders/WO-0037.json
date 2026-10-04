@@ -1,0 +1,126 @@
+{
+  "order_id": "WO-0037",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_back",
+  "pod_id": "R1-M-B3",
+  "crop_type": "lettuce",
+  "trough_id": "R1-M-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-M-B \u00b7 back",
+  "priority": 3,
+  "title": "Verify treatment on R1-M-B3",
+  "rationale": "Treatment WO-0018 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 3,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/lettuce_disease_Downy_mildew_on_lettuce_R1-M-B3.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Downy_mildew_on_lettuce",
+    "disease_confidence": 0.89,
+    "n_disease_detections": 1,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Downy_mildew_on_lettuce detected at 0.89 confidence",
+    "trend": "stage unchanged (None); disease flagged 3x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T10:12:27+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Downy_mildew_on_lettuce",
+      "confidence": 0.89,
+      "box_norm": [
+        0.1765,
+        0.2825,
+        0.6961,
+        0.6769
+      ],
+      "center_norm": [
+        0.5246,
+        0.621
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-M-B and align with pod R1-M-B3.",
+      "params": {
+        "trough": "R1-M-B",
+        "pod": "R1-M-B3",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "dispatched",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0018",
+  "not_before": "2026-10-04T10:12:53+00:00",
+  "created": "2026-10-04T10:12:45+00:00",
+  "updated": "2026-10-04T10:12:56+00:00",
+  "history": [
+    [
+      "2026-10-04T10:12:45+00:00",
+      "scheduled",
+      "due 2026-10-04T10:12:53+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-04T10:12:53+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-04T10:12:53+00:00",
+      "dispatched",
+      "sent to camera_back"
+    ],
+    [
+      "2026-10-04T10:12:53+00:00",
+      "in_progress",
+      "camera_back started"
+    ],
+    [
+      "2026-10-04T10:12:56+00:00",
+      "dispatched",
+      "robot simulation switched off - waiting for a real agent"
+    ]
+  ],
+  "ai": {},
+  "outcome": {}
+}

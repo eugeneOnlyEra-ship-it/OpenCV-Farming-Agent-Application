@@ -1,0 +1,121 @@
+{
+  "order_id": "WO-0029",
+  "task": "REPLANT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R1-M-B1",
+  "crop_type": "lettuce",
+  "trough_id": "R1-M-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-M-B \u00b7 back",
+  "priority": 2,
+  "title": "Replant lettuce at R1-M-B1",
+  "rationale": "Harvest WO-0026 finished: the pod is empty, so start the next crop.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/lettuce_disease_healthy_R1-M-B1.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.953,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.872,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "flag_for_harvest",
+    "reason": "lettuce at stage 04- Harvest stage (0.95 confidence)",
+    "trend": "stage unchanged (stage 04- Harvest stage)",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:38:33+00:00",
+    "rail": 1
+  },
+  "targets": [],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-M-B and align with pod R1-M-B1.",
+      "params": {
+        "trough": "R1-M-B",
+        "pod": "R1-M-B1",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CLEAR_POD",
+      "text": "Remove remaining roots, stalks and old substrate; bag and seal them.",
+      "params": {}
+    },
+    {
+      "seq": 3,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool and the pod before planting.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "PLANT",
+      "text": "Plant a new lettuce seedling in R1-M-B1.",
+      "params": {
+        "crop": "lettuce"
+      }
+    },
+    {
+      "seq": 5,
+      "action": "WATER_FEED",
+      "text": "Water / feed with the pod's standard recipe.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion; the pod restarts at the first growth stage.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [
+    "This pod's growth history is NOT reset automatically - reset it when the new crop is in (see README)."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0026",
+  "not_before": "",
+  "created": "2026-10-04T21:38:38+00:00",
+  "updated": "2026-10-04T21:38:48+00:00",
+  "history": [
+    [
+      "2026-10-04T21:38:38+00:00",
+      "approved",
+      "no approval required by policy"
+    ],
+    [
+      "2026-10-04T21:38:38+00:00",
+      "dispatched",
+      "sent to worker_back"
+    ],
+    [
+      "2026-10-04T21:38:43+00:00",
+      "in_progress",
+      "worker_back started"
+    ],
+    [
+      "2026-10-04T21:38:48+00:00",
+      "completed",
+      "completed by simulated worker_back"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "growth"
+}

@@ -1,0 +1,118 @@
+{
+  "order_id": "WO-0079",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R2-R-B1",
+  "crop_type": "mushroom",
+  "trough_id": "R2-R-B",
+  "side": "back",
+  "location": "rail 2 \u00b7 trough R2-R-B \u00b7 back",
+  "priority": 1,
+  "title": "Treat Wilt on R2-R-B1",
+  "rationale": "Wilt detected at 0.66 confidence (1 detection) -> cause unclear playbook.",
+  "evidence": {
+    "visit": 3,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/mushroom_disease_Wilt_R2-R-B1.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": "Intermediate",
+    "growth_confidence": 0.262,
+    "disease_flag": true,
+    "disease_name": "Wilt",
+    "disease_confidence": 0.663,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "flag_for_treatment",
+    "reason": "Wilt detected at 0.66 confidence",
+    "trend": "stage unchanged (Intermediate); disease flagged 3x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:41:34+00:00",
+    "rail": 2
+  },
+  "targets": [
+    {
+      "class": "Wilt",
+      "confidence": 0.663,
+      "box_norm": [
+        0.4263,
+        0.3351,
+        0.3197,
+        0.4617
+      ],
+      "center_norm": [
+        0.5862,
+        0.5659
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R2-R-B and align with pod R2-R-B1.",
+      "params": {
+        "trough": "R2-R-B",
+        "pod": "R2-R-B1",
+        "side": "back",
+        "rail": 2
+      }
+    },
+    {
+      "seq": 2,
+      "action": "MARK_POD",
+      "text": "Flag R2-R-B1 for human inspection and keep other tools away from it.",
+      "params": {
+        "pod": "R2-R-B1"
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Only flags the pod for inspection - approval requested so a human stays in the loop.",
+  "human_notes": [
+    "The model's class is ambiguous: a human should inspect this pod before any treatment."
+  ],
+  "status": "completed",
+  "progress": 3,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:41:34+00:00",
+  "updated": "2026-10-04T21:41:36+00:00",
+  "history": [
+    [
+      "2026-10-04T21:41:34+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ],
+    [
+      "2026-10-04T21:41:34+00:00",
+      "dispatched",
+      "sent to worker_back"
+    ],
+    [
+      "2026-10-04T21:41:34+00:00",
+      "in_progress",
+      "worker_back started"
+    ],
+    [
+      "2026-10-04T21:41:36+00:00",
+      "completed",
+      "completed by simulated worker_back"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

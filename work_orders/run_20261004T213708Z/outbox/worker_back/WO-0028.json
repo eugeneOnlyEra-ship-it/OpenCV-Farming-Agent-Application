@@ -1,0 +1,147 @@
+{
+  "order_id": "WO-0028",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R1-M-B2",
+  "crop_type": "lettuce",
+  "trough_id": "R1-M-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-M-B \u00b7 back",
+  "priority": 1,
+  "title": "Treat Bacterial on R1-M-B2",
+  "rationale": "Bacterial detected at 0.93 confidence (2 detections) -> bacterial disease playbook.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/lettuce_disease_Bacterial_R1-M-B2.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.815,
+    "disease_flag": true,
+    "disease_name": "Bacterial",
+    "disease_confidence": 0.927,
+    "n_disease_detections": 2,
+    "n_growth_detections": 1,
+    "action": "flag_for_treatment",
+    "reason": "Bacterial detected at 0.93 confidence",
+    "trend": "stage unchanged (stage 04- Harvest stage); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:38:37+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Bacterial",
+      "confidence": 0.927,
+      "box_norm": [
+        0.4067,
+        0.2052,
+        0.3271,
+        0.5913
+      ],
+      "center_norm": [
+        0.5703,
+        0.5008
+      ]
+    },
+    {
+      "class": "Bacterial",
+      "confidence": 0.293,
+      "box_norm": [
+        -0.0001,
+        0.8298,
+        0.325,
+        0.1702
+      ],
+      "center_norm": [
+        0.1624,
+        0.9149
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-M-B and align with pod R1-M-B2.",
+      "params": {
+        "trough": "R1-M-B",
+        "pod": "R1-M-B2",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 2 target region(s) from the vision analysis (strongest: 0.93).",
+      "params": {
+        "n_targets": 2
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REMOVE_TISSUE",
+      "text": "Remove affected leaves and tissue at the target regions.",
+      "params": {
+        "mode": "targets"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "BAG_AND_SEAL",
+      "text": "Bag and seal everything removed; nothing is left in the trough.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "APPLY_TREATMENT",
+      "text": "Apply the human-selected bactericide to the treated area only (product chosen at approval).",
+      "params": {
+        "product": "HUMAN_SELECTED",
+        "area": "targets"
+      }
+    },
+    {
+      "seq": 6,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 7,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Removes plant material and applies a bactericide - a human must approve.",
+  "human_notes": [
+    "Choose a bactericide approved for this crop only if you decide treatment is warranted.",
+    "Avoid overhead watering; inspect neighbouring pods."
+  ],
+  "status": "approved",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:38:37+00:00",
+  "updated": "2026-10-04T21:38:37+00:00",
+  "history": [
+    [
+      "2026-10-04T21:38:37+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

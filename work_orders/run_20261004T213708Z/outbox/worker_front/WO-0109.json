@@ -1,0 +1,134 @@
+{
+  "order_id": "WO-0109",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R3-M-F2",
+  "crop_type": "lettuce",
+  "trough_id": "R3-M-F",
+  "side": "front",
+  "location": "rail 3 \u00b7 trough R3-M-F \u00b7 front",
+  "priority": 1,
+  "title": "Treat Powdery mildew on R3-M-F2",
+  "rationale": "Powdery mildew detected at 0.82 confidence (1 detection) -> foliar fungal / mildew disease playbook.",
+  "evidence": {
+    "visit": 0,
+    "step": 2,
+    "n_steps": 3,
+    "image": "work_orders/run_20261004T213708Z/frames/WO-0104_after.jpg",
+    "image_size": [
+      573,
+      627
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.924,
+    "disease_flag": true,
+    "disease_name": "Powdery_mildew_on_lettuce",
+    "disease_confidence": 0.824,
+    "n_disease_detections": 2,
+    "n_growth_detections": 1,
+    "action": "flag_for_treatment",
+    "reason": "Powdery_mildew_on_lettuce detected at 0.82 confidence",
+    "trend": "",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:43:41+00:00",
+    "rail": 3,
+    "frame_source": "zoomed x3.0 on the suspected region"
+  },
+  "targets": [
+    {
+      "class": "Powdery_mildew_on_lettuce",
+      "confidence": 0.824,
+      "box_norm": [
+        0.0066,
+        0.0032,
+        0.8086,
+        0.6553
+      ],
+      "center_norm": [
+        0.4109,
+        0.3309
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R3-M-F and align with pod R3-M-F2.",
+      "params": {
+        "trough": "R3-M-F",
+        "pod": "R3-M-F2",
+        "side": "front",
+        "rail": 3
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 1 target region(s) from the vision analysis (strongest: 0.82).",
+      "params": {
+        "n_targets": 1
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REMOVE_TISSUE",
+      "text": "Remove affected leaves at the target regions.",
+      "params": {
+        "mode": "targets"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "BAG_AND_SEAL",
+      "text": "Bag and seal everything removed; nothing is left in the trough.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "APPLY_TREATMENT",
+      "text": "Apply the human-selected fungicide to the treated area only (product chosen at approval).",
+      "params": {
+        "product": "HUMAN_SELECTED",
+        "area": "targets"
+      }
+    },
+    {
+      "seq": 6,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 7,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Removes plant material and applies a fungicide - a human must approve.",
+  "human_notes": [
+    "Choose a fungicide approved for this crop and follow its label (product and dose are the human's call).",
+    "Check airflow and leaf wetness around this pod."
+  ],
+  "status": "approved",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0104",
+  "not_before": "",
+  "created": "2026-10-04T21:43:41+00:00",
+  "updated": "2026-10-04T21:43:41+00:00",
+  "history": [
+    [
+      "2026-10-04T21:43:41+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

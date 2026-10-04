@@ -1,0 +1,116 @@
+{
+  "order_id": "WO-0020",
+  "task": "RECAPTURE",
+  "role": "camera",
+  "agent": "camera_front",
+  "pod_id": "R1-R-F1",
+  "crop_type": "mushroom",
+  "trough_id": "R1-R-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-R-F \u00b7 front",
+  "priority": 3,
+  "title": "Re-capture R1-R-F1",
+  "rationale": "The last reading was too uncertain to act on: suspected Trichoderma (0.34) is below the action threshold.",
+  "evidence": {
+    "visit": 2,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/traj_mushroom_R1-R-F1_Harvest.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": "Intermediate",
+    "growth_confidence": 0.934,
+    "disease_flag": true,
+    "disease_name": "Trichoderma",
+    "disease_confidence": 0.341,
+    "n_disease_detections": 2,
+    "n_growth_detections": 2,
+    "action": "schedule_frequent_monitoring",
+    "reason": "low-confidence read this visit (growth=0.93, disease=0.34) \u2014 re-checking sooner rather than acting on it",
+    "trend": "stage unchanged (Intermediate); disease flagged 2x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T09:52:21+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Trichoderma",
+      "confidence": 0.341,
+      "box_norm": [
+        0.813,
+        0.8001,
+        0.1874,
+        0.2
+      ],
+      "center_norm": [
+        0.9067,
+        0.9001
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-R-F and align with pod R1-R-F1.",
+      "params": {
+        "trough": "R1-R-F",
+        "pod": "R1-R-F1",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "ADJUST_VIEW",
+      "text": "Zoom to the suspected region(s) and capture two angles.",
+      "params": {
+        "focus_regions": 1
+      }
+    },
+    {
+      "seq": 3,
+      "action": "CAPTURE",
+      "text": "Capture 3 frames (bracket exposure if the camera supports it).",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 4,
+      "action": "UPLOAD",
+      "text": "Send the frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "REQUEUE",
+      "text": "Pod is re-inspected within 4 h.",
+      "params": {
+        "revisit_hours": 4
+      }
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "approved",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T09:52:21+00:00",
+  "updated": "2026-10-04T09:52:21+00:00",
+  "history": [
+    [
+      "2026-10-04T09:52:21+00:00",
+      "approved",
+      "no approval required by policy"
+    ]
+  ],
+  "ai": {},
+  "outcome": {}
+}

@@ -1,0 +1,116 @@
+{
+  "order_id": "WO-0067",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R3-R-B2",
+  "crop_type": "mushroom",
+  "trough_id": "R3-R-B",
+  "side": "back",
+  "location": "rail 3 \u00b7 trough R3-R-B \u00b7 back",
+  "priority": 1,
+  "title": "Treat Wilt on R3-R-B2",
+  "rationale": "Wilt detected at 0.66 confidence (2 detections) -> cause unclear playbook.",
+  "evidence": {
+    "visit": 2,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/mushroom_disease_Wilt_R3-R-B2.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Wilt",
+    "disease_confidence": 0.661,
+    "n_disease_detections": 2,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Wilt detected at 0.66 confidence",
+    "trend": "stage unchanged (None); disease flagged 2x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T09:53:31+00:00",
+    "rail": 3
+  },
+  "targets": [
+    {
+      "class": "Wilt",
+      "confidence": 0.661,
+      "box_norm": [
+        0.3915,
+        0.4695,
+        0.2801,
+        0.2393
+      ],
+      "center_norm": [
+        0.5316,
+        0.5891
+      ]
+    },
+    {
+      "class": "Wilt",
+      "confidence": 0.315,
+      "box_norm": [
+        0.2773,
+        0.2178,
+        0.4221,
+        0.4932
+      ],
+      "center_norm": [
+        0.4884,
+        0.4643
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R3-R-B and align with pod R3-R-B2.",
+      "params": {
+        "trough": "R3-R-B",
+        "pod": "R3-R-B2",
+        "side": "back",
+        "rail": 3
+      }
+    },
+    {
+      "seq": 2,
+      "action": "MARK_POD",
+      "text": "Flag R3-R-B2 for human inspection and keep other tools away from it.",
+      "params": {
+        "pod": "R3-R-B2"
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Only flags the pod for inspection - approval requested so a human stays in the loop.",
+  "human_notes": [
+    "The model's class is ambiguous: a human should inspect this pod before any treatment."
+  ],
+  "status": "awaiting_approval",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T09:53:31+00:00",
+  "updated": "2026-10-04T09:53:31+00:00",
+  "history": [
+    [
+      "2026-10-04T09:53:31+00:00",
+      "awaiting_approval",
+      "waiting for human approval"
+    ]
+  ],
+  "ai": {},
+  "outcome": {}
+}

@@ -1,0 +1,181 @@
+{
+  "order_id": "WO-0094",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R3-L-B1",
+  "crop_type": "cabbage",
+  "trough_id": "R3-L-B",
+  "side": "back",
+  "location": "rail 3 \u00b7 trough R3-L-B \u00b7 back",
+  "priority": 1,
+  "title": "Treat Sclerotinia rot on R3-L-B1",
+  "rationale": "Sclerotinia rot detected at 0.90 confidence (4 detections) -> root / stem rot or wilt playbook.",
+  "evidence": {
+    "visit": 3,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/cabbage_disease_Cabbage_Sclerotinia_rot_R3-L-B1.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Cabbage-Sclerotinia_rot",
+    "disease_confidence": 0.902,
+    "n_disease_detections": 4,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Cabbage-Sclerotinia_rot detected at 0.90 confidence",
+    "trend": "stage unchanged (None); disease flagged 3x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:42:24+00:00",
+    "rail": 3
+  },
+  "targets": [
+    {
+      "class": "Cabbage-Sclerotinia_rot",
+      "confidence": 0.902,
+      "box_norm": [
+        0.6872,
+        0.6352,
+        0.1657,
+        0.1593
+      ],
+      "center_norm": [
+        0.7701,
+        0.7148
+      ]
+    },
+    {
+      "class": "Cabbage-Sclerotinia_rot",
+      "confidence": 0.857,
+      "box_norm": [
+        0.6647,
+        0.8588,
+        0.1385,
+        0.1089
+      ],
+      "center_norm": [
+        0.734,
+        0.9133
+      ]
+    },
+    {
+      "class": "Cabbage-Sclerotinia_rot",
+      "confidence": 0.816,
+      "box_norm": [
+        0.4158,
+        0.5981,
+        0.0565,
+        0.0719
+      ],
+      "center_norm": [
+        0.4441,
+        0.634
+      ]
+    },
+    {
+      "class": "Cabbage-Sclerotinia_rot",
+      "confidence": 0.74,
+      "box_norm": [
+        0.3787,
+        0.4373,
+        0.1012,
+        0.1153
+      ],
+      "center_norm": [
+        0.4293,
+        0.4949
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R3-L-B and align with pod R3-L-B1.",
+      "params": {
+        "trough": "R3-L-B",
+        "pod": "R3-L-B1",
+        "side": "back",
+        "rail": 3
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 4 target region(s) from the vision analysis (strongest: 0.90).",
+      "params": {
+        "n_targets": 4
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REMOVE_TISSUE",
+      "text": "Remove the whole plant and its root zone.",
+      "params": {
+        "mode": "whole_plant"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "BAG_AND_SEAL",
+      "text": "Bag and seal everything removed; nothing is left in the trough.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Removes plant material - a human must approve.",
+  "human_notes": [
+    "Inspect neighbouring pods and the shared water / substrate.",
+    "Do not reuse the removed substrate."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:42:24+00:00",
+  "updated": "2026-10-04T21:42:29+00:00",
+  "history": [
+    [
+      "2026-10-04T21:42:24+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ],
+    [
+      "2026-10-04T21:42:24+00:00",
+      "dispatched",
+      "sent to worker_back"
+    ],
+    [
+      "2026-10-04T21:42:24+00:00",
+      "in_progress",
+      "worker_back started"
+    ],
+    [
+      "2026-10-04T21:42:29+00:00",
+      "completed",
+      "completed by simulated worker_back"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

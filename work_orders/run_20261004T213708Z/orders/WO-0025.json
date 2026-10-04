@@ -1,0 +1,167 @@
+{
+  "order_id": "WO-0025",
+  "task": "RECAPTURE",
+  "role": "camera",
+  "agent": "camera_front",
+  "pod_id": "R1-M-F4",
+  "crop_type": "lettuce",
+  "trough_id": "R1-M-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-M-F \u00b7 front",
+  "priority": 3,
+  "title": "Re-capture R1-M-F4",
+  "rationale": "The last reading was too uncertain to act on: suspected Bacterial (0.41) is below the action threshold.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/traj_lettuce_R1-M-F4_stage_04__Harvest_stage.jpg",
+    "image_size": [
+      420,
+      420
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.98,
+    "disease_flag": true,
+    "disease_name": "Bacterial",
+    "disease_confidence": 0.411,
+    "n_disease_detections": 2,
+    "n_growth_detections": 3,
+    "action": "schedule_frequent_monitoring",
+    "reason": "low-confidence read this visit (growth=0.98, disease=0.41) \u2014 re-checking sooner rather than acting on it",
+    "trend": "stage unchanged (stage 04- Harvest stage); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:38:27+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Bacterial",
+      "confidence": 0.411,
+      "box_norm": [
+        -0.0,
+        0.38,
+        0.1297,
+        0.3626
+      ],
+      "center_norm": [
+        0.0648,
+        0.5613
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-M-F and align with pod R1-M-F4.",
+      "params": {
+        "trough": "R1-M-F",
+        "pod": "R1-M-F4",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "ADJUST_VIEW",
+      "text": "Zoom to the suspected region(s) and capture two angles.",
+      "params": {
+        "focus_regions": 1
+      }
+    },
+    {
+      "seq": 3,
+      "action": "CAPTURE",
+      "text": "Capture 3 frames (bracket exposure if the camera supports it).",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 4,
+      "action": "UPLOAD",
+      "text": "Send the frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "REQUEUE",
+      "text": "Pod is re-inspected within 4 h.",
+      "params": {
+        "revisit_hours": 4
+      }
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 5,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:38:27+00:00",
+  "updated": "2026-10-04T21:38:33+00:00",
+  "history": [
+    [
+      "2026-10-04T21:38:27+00:00",
+      "approved",
+      "no approval required by policy"
+    ],
+    [
+      "2026-10-04T21:38:27+00:00",
+      "dispatched",
+      "sent to camera_front"
+    ],
+    [
+      "2026-10-04T21:38:27+00:00",
+      "in_progress",
+      "camera_front started"
+    ],
+    [
+      "2026-10-04T21:38:31+00:00",
+      "completed",
+      "completed by simulated camera_front"
+    ],
+    [
+      "2026-10-04T21:38:33+00:00",
+      "completed",
+      "loop closed: Still uncertain after the re-capture -> escalated to a human (WO-0027)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "still_uncertain",
+    "headline": "Still uncertain after the re-capture -> escalated to a human (WO-0027)",
+    "before": {
+      "growth_stage": "stage 04- Harvest stage",
+      "growth_confidence": 0.98,
+      "disease_flag": true,
+      "disease_name": "Bacterial",
+      "disease_confidence": 0.411,
+      "n_disease_detections": 2,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after": {
+      "growth_stage": null,
+      "growth_confidence": 0.0,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.0,
+      "n_disease_detections": 0,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after_boxes": [],
+    "after_size": [
+      180,
+      640
+    ],
+    "frame": "work_orders/run_20261004T213708Z/frames/WO-0025_after.jpg",
+    "frame_note": "zoomed x2.5 on the suspected region",
+    "simulated": true,
+    "next_order": "WO-0027"
+  },
+  "aspect": "disease"
+}

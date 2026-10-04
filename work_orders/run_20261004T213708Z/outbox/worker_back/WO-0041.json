@@ -1,0 +1,222 @@
+{
+  "order_id": "WO-0041",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_back",
+  "pod_id": "R1-R-B3",
+  "crop_type": "mushroom",
+  "trough_id": "R1-R-B",
+  "side": "back",
+  "location": "rail 1 \u00b7 trough R1-R-B \u00b7 back",
+  "priority": 1,
+  "title": "Treat Dry Bubble on R1-R-B3",
+  "rationale": "Dry Bubble detected at 0.75 confidence (17 detections) -> fungal contamination playbook.",
+  "evidence": {
+    "visit": 4,
+    "step": 0,
+    "n_steps": 1,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Application_UI_v3 (2)/OpenCV-Farming-Agent-Application/sample_images/mushroom_disease_Dry_Bubble_R1-R-B3.jpg",
+    "image_size": [
+      224,
+      224
+    ],
+    "growth_stage": null,
+    "growth_confidence": 0.0,
+    "disease_flag": true,
+    "disease_name": "Dry Bubble",
+    "disease_confidence": 0.749,
+    "n_disease_detections": 17,
+    "n_growth_detections": 0,
+    "action": "flag_for_treatment",
+    "reason": "Dry Bubble detected at 0.75 confidence",
+    "trend": "stage unchanged (None); disease flagged 4x in a row",
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-04T21:39:21+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.749,
+      "box_norm": [
+        0.0085,
+        0.8544,
+        0.1175,
+        0.1461
+      ],
+      "center_norm": [
+        0.0672,
+        0.9275
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.747,
+      "box_norm": [
+        0.2673,
+        0.7047,
+        0.1583,
+        0.1622
+      ],
+      "center_norm": [
+        0.3465,
+        0.7858
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.708,
+      "box_norm": [
+        0.0651,
+        0.1455,
+        0.1539,
+        0.1632
+      ],
+      "center_norm": [
+        0.1421,
+        0.2271
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.691,
+      "box_norm": [
+        0.7471,
+        0.8671,
+        0.1148,
+        0.1316
+      ],
+      "center_norm": [
+        0.8045,
+        0.9329
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.67,
+      "box_norm": [
+        0.3383,
+        0.8719,
+        0.1648,
+        0.1272
+      ],
+      "center_norm": [
+        0.4207,
+        0.9355
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.641,
+      "box_norm": [
+        0.174,
+        0.2665,
+        0.2523,
+        0.2601
+      ],
+      "center_norm": [
+        0.3001,
+        0.3966
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.573,
+      "box_norm": [
+        0.0,
+        0.1451,
+        0.0715,
+        0.1566
+      ],
+      "center_norm": [
+        0.0358,
+        0.2235
+      ]
+    },
+    {
+      "class": "Dry Bubble",
+      "confidence": 0.56,
+      "box_norm": [
+        0.5128,
+        0.6812,
+        0.2671,
+        0.1532
+      ],
+      "center_norm": [
+        0.6464,
+        0.7578
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-R-B and align with pod R1-R-B3.",
+      "params": {
+        "trough": "R1-R-B",
+        "pod": "R1-R-B3",
+        "side": "back",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 8 target region(s) from the vision analysis (strongest: 0.75).",
+      "params": {
+        "n_targets": 8
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REMOVE_TISSUE",
+      "text": "Remove the affected mushrooms and the contaminated patch.",
+      "params": {
+        "mode": "targets"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "BAG_AND_SEAL",
+      "text": "Bag and seal everything removed; nothing is left in the trough.",
+      "params": {}
+    },
+    {
+      "seq": 5,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Removes plant material - a human must approve.",
+  "human_notes": [
+    "Widespread symptoms (17 detections): decide whether to treat or remove the whole plant.",
+    "Check hygiene and air handling in this growing room."
+  ],
+  "status": "approved",
+  "progress": 0,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-04T21:39:21+00:00",
+  "updated": "2026-10-04T21:39:21+00:00",
+  "history": [
+    [
+      "2026-10-04T21:39:21+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}
