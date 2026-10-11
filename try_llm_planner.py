@@ -15,7 +15,8 @@ import json
 import sys
 
 from agent import decide_action
-from farm_engine import image_for_step, n_steps_for
+from crop_cycle import CycleStore, has_cycle
+from farm_engine import SESSION_VISITS, image_for_step, n_steps_for
 from llm_planner import (SYSTEM_PROMPT, LlmPlanner, OllamaBackend, ScriptedBackend,
                          parse_proposal, resolve)
 from perception import MODEL_REGISTRY, classify_pod, warm_up
@@ -70,6 +71,7 @@ def main():
     ap.add_argument("--model", default="llama3.2:3b")
     ap.add_argument("--image", action="store_true", help="send the photo too (vision model needed)")
     ap.add_argument("--pod", action="append", help="pod id (repeatable); default = a mixed sample")
+    ap.add_argument("--visits", type=int, default=SESSION_VISITS, help="visits per pod (crop-cycle pods)")
     ap.add_argument("--show-prompt", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
@@ -82,12 +84,18 @@ def main():
     warm_up()
     by_id = {p["pod_id"]: p for p in PODS}
     shown, counts = False, {}
+    cycles = CycleStore(None)          # in memory: each pod starts at its staggered initial crop age
     for pid in (a.pod or DEFAULT_PODS):
         pod = by_id[pid]
-        n, history, prior_down = n_steps_for(pod), [], False
-        print(f"== {pid} ({pod['crop_type']}, {pod['side']}), {n} image(s)")
+        cyc = has_cycle(pod)
+        n, history, prior_down = (a.visits if cyc else n_steps_for(pod)), [], False
+        print(f"== {pid} ({pod['crop_type']}, {pod['side']}), {n} visit(s)"
+              + (f", starting at crop age {cycles.info(pod)['age']}/{cycles.info(pod)['harvest_age']}" if cyc else ""))
         for step in range(n):
-            path, _ = image_for_step(pod, step)
+            if cyc:
+                path, _, info = cycles.image(pod)
+            else:
+                path, _ = image_for_step(pod, step)
             cls = classify_pod(pid, pod["crop_type"], path)
             dec = decide_action(cls)
             ev, res = planner.plan(pod, cls, dec, history, step, n, MODEL_REGISTRY[pod["crop_type"]]["growth"]["harvest_stage"],
@@ -97,9 +105,14 @@ def main():
                 print("\n--- SYSTEM PROMPT ---\n" + SYSTEM_PROMPT + "\n--- EVIDENCE SENT TO THE LLM ---\n"
                       + json.dumps(ev, indent=2) + "\n---------------------------------\n")
             prior_down = res.verdict == "downgraded"
+            if cyc:        # a ripe crop that gets harvested is replanted; otherwise it ages a visit (or keeps waiting)
+                if info["waiting_for_harvest"] and res.final_task == "HARVEST":
+                    cycles.reset(pid)
+                else:
+                    cycles.advance(pod)
             counts[res.verdict] = counts.get(res.verdict, 0) + 1
             prop = res.proposal.task if res.proposal else "-"
-            print(f"  visit {step + 1}/{n}  rules: {res.rule_task:9s} LLM: {prop:9s} -> FINAL: {res.final_task:9s} [{res.verdict}]")
+            print(f"  visit {step + 1}/{n}" + (f" (age {info['age']}, {info['stage']})" if cyc else "") + f"  rules: {res.rule_task:9s} LLM: {prop:9s} -> FINAL: {res.final_task:9s} [{res.verdict}]")
             if res.proposal and res.proposal.reason:
                 print(f"       LLM said: {res.proposal.reason}")
             print(f"       guardrail: {res.why}")

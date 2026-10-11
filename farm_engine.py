@@ -41,13 +41,14 @@ import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import perception
 from agent import DISEASE_ACTION_THRESHOLD, GROWTH_ACTION_THRESHOLD, decide_action
 from camera import PodCamera
 from cloud_pipeline import LocalCloudClient
+from crop_cycle import CycleStore, has_cycle
 from dynamo_client import LocalDynamoTable
 from frame_source import SimulatedCamera
 from llm_planner import RULE_TASK, LlmPlanner, OllamaBackend, ScriptedBackend
@@ -57,6 +58,7 @@ from trend import summarize_trend
 from worker_planner import OrderBook, OrderPolicy
 
 FEEDBACK_TIMEOUT_S = 15.0
+SESSION_VISITS = 4          # visits to a pod per run (a crop's age advances one step per visit)
 ROBOT_DONE_DWELL_S = 3.0   # after waiting for robots, keep the finished job on screen this long
 MIN_DWELL_S = 1.2          # how long a finished pod stays on screen before the slot moves on
 ACTIONS = ["log_healthy", "flag_for_harvest", "schedule_frequent_monitoring", "flag_for_treatment"]
@@ -91,6 +93,7 @@ class StepResult:
     logged: bool
     conf_threshold: float
     verified: dict           # {"aspect": "growth"|"disease"|None, "expected": str, "ok": bool|None}
+    cycle: dict = field(default_factory=dict)   # crop age / stage info for the pod's life cycle (front pods)
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +186,7 @@ class Slot:
 
 class FarmEngine:
     def __init__(self, pods, n_slots=2, settings=None, reset_history=False,
-                 log_dir="logs", history_path="dynamo_table.json"):
+                 log_dir="logs", history_path="dynamo_table.json", orders_dir=None):
         self.pods = list(pods)
         self.n_slots = n_slots
         self.settings = settings or Settings()
@@ -193,15 +196,22 @@ class FarmEngine:
             os.remove(history_path)
         self.history = LocalDynamoTable(path=history_path)
         self.history_path = history_path
+        # every front pod has a crop life cycle (ordered stages that linger, staggered ages, harvest waits for
+        # the robots, replanting restarts it); see crop_cycle.py. Saved next to the history file.
+        self.cycles = CycleStore(os.path.splitext(history_path)[0] + "_cycle.json")
+        if reset_history:
+            self.cycles.clear()
+        self.session_visits = SESSION_VISITS
         self.logger = RunLogger(out_dir=log_dir)
         self.cloud = LocalCloudClient(max_concurrency=n_slots)
         self.camera = PodCamera(self.cloud)
 
         # worker/camera agent instructions generated from each analysed image
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        self.orders = OrderBook(os.path.join("work_orders", f"run_{stamp}"), OrderPolicy(),
+        self.orders = OrderBook(orders_dir or os.path.join("work_orders", f"run_{stamp}"), OrderPolicy(),
                                 on_change=lambda: self.events.put(("orders", None)))
         self.orders.on_complete = self._on_order_complete
+        self.orders.on_replant = self._on_replant
         self.pods_by_id = {p["pod_id"]: p for p in self.pods}
         self.frame_source = SimulatedCamera()          # swap for a real camera source (see frame_source.py)
         self._followup_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loop")
@@ -381,6 +391,18 @@ class FarmEngine:
         """Re-evaluates a stored reading under the CURRENT thresholds (cheap,
         pure) so the UI can show what the decision would be right now."""
         return decide_action(classification, self.settings.disease_threshold, self.settings.growth_threshold)
+
+    # ----- crop life cycle -------------------------------------------------
+
+    def _n_steps(self, pod):
+        """Visits to this pod in one run: a fixed number for pods with a crop life cycle, else its image list."""
+        return self.session_visits if has_cycle(pod) else n_steps_for(pod)
+
+    def _on_replant(self, pod_id):
+        """Called by the order book just BEFORE a REPLANT job is marked complete: the new crop starts at age 0, so
+        the pod's next image is stage 1 again."""
+        self.cycles.reset(pod_id)
+        self._log(f"{pod_id}: replanted - a new crop starts (next image is stage 1)", "ok")
 
     # ----- AI planner (optional) ------------------------------------------
 
@@ -588,16 +610,23 @@ class FarmEngine:
         return waited
 
     def _begin_pod(self, slot, pod):
-        n = n_steps_for(pod)
-        first = min(self.history.visit_count(pod["pod_id"]), n - 1)   # resume where history left off
+        n = self._n_steps(pod)
+        # life-cycle pods always start a run's visits at 0 (their crop age carries the progress between runs);
+        # other pods resume where their history left off
+        first = 0 if has_cycle(pod) else min(self.history.visit_count(pod["pod_id"]), n - 1)
         with slot.lock:
             slot.pod, slot.results, slot.view_index = pod, [], None
             slot.first_step, slot.next_step, slot.n_steps = first, first, n
             slot.done, slot.skip, slot.status = False, False, "inspecting"
         self.pod_status[pod["pod_id"]] = "running"
         self.pod_slot[pod["pod_id"]] = slot.id
+        where = ""
+        if has_cycle(pod):
+            ci = self.cycles.info(pod)
+            where = (f", crop age {ci['age']}/{ci['harvest_age']}" +
+                     (" (ripe, waiting for harvest)" if ci["waiting_for_harvest"] else ""))
         self._log(f"slot {slot.id + 1} picked up {pod['pod_id']} ({pod['crop_type']}), "
-                  f"images {first + 1}-{n} of {n}")
+                  f"visits {first + 1}-{n} of {n}{where}")
         self._emit_slot(slot.id)
         self.events.put(("queue", None))
 
@@ -647,7 +676,8 @@ class FarmEngine:
                 pod = slot.pod
                 slot.status = "inspecting"
             self._emit_slot(slot.id)
-            result = self._scan(pod, src.step_index, slot, rescan=True)
+            gt = src.verified["expected"] if src.verified.get("aspect") == "growth" else None
+            result = self._scan(pod, src.step_index, slot, rescan=True, override=(src.image_path, gt), cycle=src.cycle)
             with slot.lock:
                 if result is not None:
                     slot.results.append(result)
@@ -657,11 +687,17 @@ class FarmEngine:
         finally:
             slot.busy = False
 
-    def _scan(self, pod, step, slot, rescan):
+    def _scan(self, pod, step, slot, rescan, override=None, cycle=None):
         """Capture -> cloud classify+decide -> (history, trend, log). The
         only difference for a re-scan is that it is NOT written to the
         history/log, so re-scanning never advances a pod's growth."""
-        image_path, gt_stage = image_for_step(pod, step)
+        if override is not None:                       # re-scan: the same photo that is on screen
+            (image_path, gt_stage), cycle = override, (cycle or {})
+        elif has_cycle(pod):                           # this pod's crop, at its current age
+            image_path, gt_stage, cycle = self.cycles.image(pod)
+        else:
+            image_path, gt_stage = image_for_step(pod, step)
+            cycle = {}
         st = self.settings
         try:
             rid = self.camera.capture_and_submit(pod["pod_id"], pod["crop_type"], image_path,
@@ -701,6 +737,8 @@ class FarmEngine:
                 }
                 row = self.logger.log(pod_for_log, classification, decision)
                 row["visit"], row["trend"] = visit_num, trend_note
+                if has_cycle(pod):
+                    self.cycles.advance(pod)           # one visit older (a ripe crop keeps waiting for the harvest)
                 self.action_counts[decision["action"]] += 1
                 self.steps_done += 1
                 self.latency_sum += record["latency_seconds"]
@@ -712,11 +750,11 @@ class FarmEngine:
                     self.disease_ok += bool(verified["ok"])
 
         result = StepResult(
-            pod_id=pod["pod_id"], crop_type=pod["crop_type"], step_index=step, n_steps=n_steps_for(pod),
+            pod_id=pod["pod_id"], crop_type=pod["crop_type"], step_index=step, n_steps=self._n_steps(pod),
             visit_num=visit_num, image_path=image_path, classification=classification, decision=decision,
             trend_note=trend_note, latency_s=record["latency_seconds"], worker=record["worker_thread"],
             timestamp=ts, kind="rescan" if rescan else "scan", logged=not rescan,
-            conf_threshold=st.conf_threshold, verified=verified,
+            conf_threshold=st.conf_threshold, verified=verified, cycle=cycle,
         )
 
         if not rescan:
@@ -736,7 +774,7 @@ class FarmEngine:
                     self._log(f"  -> order {oid} {o.task} superseded by a treatment order", "info")
 
         disease_bit = classification["disease_name"] if classification["disease_flag"] else "no disease"
-        tag = "re-scan (not logged)" if rescan else f"image {step + 1}/{n_steps_for(pod)}"
+        tag = "re-scan (not logged)" if rescan else f"visit {step + 1}/{self._n_steps(pod)}"
         self._log(f"{pod['pod_id']} {tag}: stage {classification['growth_stage']} "
                   f"({classification['growth_confidence']:.2f}), {disease_bit} -> {decision['action']}",
                   "warn" if decision["action"] == "flag_for_treatment" else "info")

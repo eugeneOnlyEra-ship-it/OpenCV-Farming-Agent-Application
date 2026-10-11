@@ -235,6 +235,7 @@ def _evidence(pod, result, size):
         "n_disease_detections": len(c["disease_detections"]),
         "n_growth_detections": len(c["growth_detections"]),
         "action": d["action"], "reason": d["reason"], "trend": result.trend_note,
+        "cycle": dict(getattr(result, "cycle", {}) or {}),
         "model_sensitivity": result.conf_threshold, "scan_time": result.timestamp,
     }
 
@@ -308,7 +309,7 @@ def build_harvest(pod, result, size, policy):
         rationale=f"{pod['crop_type']} at harvest stage ({_nice(stage)}, {c['growth_confidence']:.2f} confidence), "
                   f"no confident disease reading.",
         targets=targets, steps=steps, requires_approval=True,
-        human_notes=["After replanting, reset this pod's growth history so it restarts at the first stage."],
+        human_notes=["After this harvest the worker replants the pod; its crop cycle then restarts at the first stage."],
         approval_note="Harvesting is irreversible - approval required while auto-approve is off.")
 
 
@@ -424,6 +425,7 @@ class OrderBook:
         self._llm_downgraded = {}                 # pod_id -> did the last AI consult ask for a recapture?
         self._timers = []
         self._loop_pending = {}                   # RECAPTURE order id -> pod, until its follow-up frame is analysed
+        self.on_replant = None                    # engine hook: a REPLANT job is finishing (restart the pod's crop cycle)
         self.on_complete = None                   # engine hook: called when a RECAPTURE / VERIFY order finishes
 
     # ----- planning --------------------------------------------------------
@@ -636,6 +638,8 @@ class OrderBook:
             if not o or o.status not in ("dispatched", "in_progress", "approved"):
                 return False
             o.progress = len(o.steps)
+            if o.task == "REPLANT" and self.on_replant is not None:
+                self.on_replant(o.pod_id)            # BEFORE the order counts as done: the pod's next image is a new crop
             self._set(o, "completed", note)
             if o.task == "TREAT" and not any(
                     x.follow_up_of == o.order_id for x in self._orders.values()):
@@ -661,8 +665,8 @@ class OrderBook:
             location=harvest.location, priority=PRIORITY["REPLANT"], title=f"Replant {harvest.crop_type} at {harvest.pod_id}",
             rationale=f"Harvest {harvest.order_id} finished: the pod is empty, so start the next crop.",
             evidence=copy.deepcopy(harvest.evidence), targets=[], steps=build_replant(harvest),
-            requires_approval=False, human_notes=["This pod's growth history is NOT reset automatically - reset it "
-                                                  "when the new crop is in (see README)."],
+            requires_approval=False, human_notes=["When this job finishes the pod's crop cycle restarts: its next "
+                                                  "image is stage 1 of the new crop."],
             follow_up_of=harvest.order_id, aspect="growth", created=_now(), updated=_now())
         self._orders[r.order_id] = r
         self._trace("order_created", r, extra={"follow_up_of": harvest.order_id})

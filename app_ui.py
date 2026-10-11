@@ -565,8 +565,9 @@ class PodCard(tk.Frame):
                  ).pack(side="left", padx=(0, 8))
         self.pod_label = tk.Label(head, text="—", bg=C["card"], fg=C["text"], font=self.f["title"])
         self.pod_label.pack(side="left")
-        self.meta_label = tk.Label(head, text="", bg=C["card"], fg=C["muted"], font=self.f["small"])
-        self.meta_label.pack(side="left", padx=10)
+        # location / crop age get their own full-width row (they used to be squeezed out by the status chips)
+        self.meta_label = tk.Label(self, text="", bg=C["card"], fg=C["muted"], font=self.f["small"], anchor="w")
+        self.meta_label.pack(fill="x", padx=12, pady=(0, 3))
         self.action_chip = Chip(head, self.f["small_b"])
         self.action_chip.pack(side="right")
         self.flag_chip = Chip(head, self.f["tiny_b"])
@@ -712,7 +713,7 @@ class PodCard(tk.Frame):
         has_engine = eng is not None
         if not view or view["pod"] is None:
             self.pod_label.config(text="—")
-            self.meta_label.config(text="")
+            self.meta_label.config(text="", fg=C["muted"])
             self.action_chip.set("WAITING" if has_engine else "READY", C["panel2"], C["muted"])
             self.flag_chip.config(text="", bg=C["card"])
             idle_txt = "waiting for a pod…" if has_engine else "press ▶ Start"
@@ -734,9 +735,16 @@ class PodCard(tk.Frame):
 
         pod = view["pod"]
         self.pod_label.config(text=pod["pod_id"])
-        self.meta_label.config(text=f"{pod['crop_type']} · rail {pod['rail']} · station "
-                                    f"{STATION_LABELS[pod['station']]} · {pod['side']}")
+        self.meta_label.config(text=f"{pod['crop_type']}  ·  rail {pod['rail']}  ·  station "
+                                    f"{STATION_LABELS[pod['station']]}  ·  {pod['side']}")
         res = self._current_result()
+        cyc = res.cycle if res is not None else {}
+        if cyc:                                             # crop life cycle: how old is this crop, is it ripe?
+            note = "  ·  RIPE, waiting for harvest" if cyc["waiting_for_harvest"] else ""
+            crop_no = f"  ·  crop #{cyc['cycle']}" if cyc["cycle"] > 1 else ""
+            self.meta_label.config(text=f"{pod['crop_type']}  ·  {pod['trough_id']}  ·  crop age {cyc['age']}/"
+                                        f"{cyc['harvest_age']}{note}{crop_no}",
+                                   fg=C["harvest"] if cyc["waiting_for_harvest"] else C["muted"])
         key = (res.pod_id, res.step_index, res.kind, res.timestamp) if res is not None else None
         if key != self._result_key:                       # a new reading: scores first, robot panel after a moment
             self._result_key = key
@@ -801,7 +809,8 @@ class PodCard(tk.Frame):
         self.config(highlightbackground=color)
 
         img = load_bgr(res.image_path)
-        badge = f"IMAGE {res.step_index + 1}/{res.n_steps}" + ("  ·  RE-SCAN" if res.kind == "rescan" else "")
+        badge = (f"VISIT {res.step_index + 1}/{res.n_steps}" if cyc else f"IMAGE {res.step_index + 1}/{res.n_steps}") \
+            + ("  ·  RE-SCAN" if res.kind == "rescan" else "")
         self.disease_img.set_content(img, [{"dets": cls["disease_detections"], "color": C["disease"],
                                                       "healthy": healthy_class(res.crop_type)}], badge, busy)
         self.growth_img.set_content(img, [{"dets": cls["growth_detections"], "color": C["growth"]}], badge, busy)
@@ -1703,7 +1712,7 @@ class App(tk.Tk):
         if not pods:
             return
         if self.reset_var.get() and not messagebox.askyesno(
-                "Reset history", "This deletes dynamo_table.json, so every pod restarts at image 1.\nContinue?"):
+                "Reset history", "This deletes dynamo_table.json AND every crop's saved age, so all pods return to their starting ages.\nContinue?"):
             return
         n = int(self.slots_var.get())
         self._build_cards()

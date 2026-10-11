@@ -6,6 +6,8 @@ no rig, no GUI. This is for working on the data processing,
 classification/decision logic, growth tracking, and visual output on
 their own, without a simulation layer in the way.
 
+> **Full project documentation for developers / the next assistant: [`HANDOFF.md`](HANDOFF.md).** Regression checks: `python dev/regression.py`; UI screenshots: `dev/ui_screenshots.py`.
+
 ## What this does
 
 For each of 72 pods, every visit:
@@ -277,6 +279,31 @@ SQS / ROS 2 (any object with `.send(dict)`). Robots report back through `OrderBo
 `work_orders/<run>/trace.jsonl` records every perception → decision → order → status event (agent-trace evidence).
 Until real robots are attached, tick **Simulate the 4 robots** and the built-in simulator executes dispatched orders.
 
+## Crop life cycles (realistic growth, `crop_cycle.py`)
+
+The old registry gave every front pod a "staircase" (one photo per stage up to harvest), so each visit jumped a whole stage
+and every pod of a crop ended its run at harvest. The interactive app now gives every front pod a **life cycle**:
+
+* **Ordered stages that linger.** A crop spends several visits in each stage (`STAGE_VISITS` in `crop_cycle.py`; relative,
+  compressed durations: cabbage slowest, mushrooms fastest). While it lingers the pod's photo of that stage repeats.
+* **Staggered.** Pods start at different crop ages (neighbours deliberately differ), so a run brings only *some* pods to
+  harvest: with 4 visits per pod, about 3 of 12 cabbage, 4 of 12 lettuce and 5 of 12 mushroom pods per run.
+* **Harvest waits for the robots.** A ripe crop stays at the harvest stage (same photo) until it is harvested *and* the
+  REPLANT job finishes; then the next image is stage 1 of a new crop. A rejected harvest therefore leaves the crop ripe.
+* **Persistent.** Crop ages are saved in `dynamo_table_cycle.json` next to the history file; "Reset history" clears both.
+
+Each card shows `crop age 7/12` (and `RIPE, waiting for harvest`). Back (disease) pods are single photos and have no cycle.
+`main.py`, `live_monitor.py` and `concurrent_monitor.py` still use the old staircase. Limitations: a replanted crop shows
+the same pod's photos again (only ~12 real photos exist for late stages), and because photos repeat while a stage lingers, a
+photo that looks diseased keeps looking diseased after treatment.
+
+**Mushroom label finding (unresolved - please check).** On the project's own labelled photos the mushroom growth model says
+"Harvest" for the photos labelled Juvenile (4/4) and "Juvenile" for most photos labelled Harvest (10/12). The model's own ONNX
+metadata matches `perception.py`, and the photos labelled Juvenile show large open caps while most labelled Harvest show thin
+young stems, so the *labels in `pods_manifest.json`* are the likely culprit, not `perception.py` (which is unchanged).
+`crop_cycle.py` therefore swaps those two labels for the cycle (`APPLY_LABEL_CORRECTIONS = True`; set it to `False` to use the
+manifest as shipped). Details and evidence: `HANDOFF.md` section 10.4.
+
 ## Closing the loop, and the optional AI planner
 
 **The loop.** When a camera order (RECAPTURE after an uncertain reading, VERIFY after a treatment) finishes, the
@@ -330,6 +357,9 @@ pod. Approval, dispatch and the robot steps stay in `worker_planner.py`. Backend
 | `farm_engine.py` | UI-independent run engine behind `app_ui.py` |
 | `llm_planner.py` / `try_llm_planner.py` | Optional AI planner with guardrails; command-line lab to try it offline |
 | `frame_source.py` | Simulated camera that derives the new frame for the closed loop (replace with a real source) |
+| `HANDOFF.md` | Complete project documentation (architecture, formats, decisions, issues, roadmap, starter prompt) |
+| `dev/regression.py`, `dev/ui_screenshots.py` | Headless regression suite; virtual-display screenshot tool |
+| `crop_cycle.py` | Crop life cycles: ordered lingering stages, staggered ages, harvest-wait, replant restart |
 | `worker_planner.py` | Turns each analysis into orders for the camera/worker agents; order book, approvals, outbox, robot simulator |
 | `run_app.sh` | Linux launcher (creates `.venv`, installs pinned OpenCV 5, starts the app) |
 | `models/` | The 6 `.onnx` files `perception.py` loads |
