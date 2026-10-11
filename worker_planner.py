@@ -613,6 +613,16 @@ class OrderBook:
         self._changed()
         return True
 
+    def cancel_dispatched(self, order_id, note="cancelled before execution"):
+        """Cancel a dispatched job that a robot backend has not started yet."""
+        with self._lock:
+            o = self._orders.get(order_id)
+            if not o or o.status not in ("dispatched", "approved"):
+                return False
+            self._set(o, "cancelled", note)
+        self._changed()
+        return True
+
     def begin(self, order_id, agent=None):
         with self._lock:
             o = self._orders.get(order_id)

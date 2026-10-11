@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<!--
+  agent_trolley.urdf
+
+  The arm/hoist mechanism is deliberately left out of this iteration --
+  see agent_robot.py. Just a two-axis trolley riding the overhead rail:
+
+    base_link     -- fixed anchor at rail height
+    carriage_link -- slides along X (between columns/poles within a row)
+    row_link       -- slides along Y (between rows, and out to the dock
+                      rail extensions at either end) -- this IS the
+                      visible agent body for now
+
+  Joint limits are generous; actual per-station targets come from
+  pod_registry.station_visit_order() at runtime.
+-->
+<robot name="agent_trolley">
+
+  <material name="carriage_orange">
+    <color rgba="0.90 0.55 0.10 1"/>
+  </material>
+  <material name="agent_blue">
+    <color rgba="0.15 0.45 0.75 1"/>
+  </material>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.12 0.12 0.05"/>
+      </geometry>
+      <material name="carriage_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.12 0.12 0.05"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+  </link>
+
+  <link name="carriage_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.16 0.16 0.07"/>
+      </geometry>
+      <material name="carriage_orange"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.16 0.16 0.07"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.8"/>
+      <inertia ixx="0.006" ixy="0" ixz="0" iyy="0.006" iyz="0" izz="0.006"/>
+    </inertial>
+  </link>
+
+  <joint name="carriage_joint" type="prismatic">
+    <parent link="base_link"/>
+    <child link="carriage_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1.0" upper="4.0" effort="250" velocity="0.6"/>
+    <dynamics damping="5.0" friction="1.0"/>
+  </joint>
+
+  <link name="row_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.20 0.20 0.09"/>
+      </geometry>
+      <material name="agent_blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.20 0.20 0.09"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.6"/>
+      <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.005"/>
+    </inertial>
+  </link>
+
+  <joint name="row_joint" type="prismatic">
+    <parent link="carriage_link"/>
+    <child link="row_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.0" upper="8.0" effort="250" velocity="0.6"/>
+    <dynamics damping="5.0" friction="1.0"/>
+  </joint>
+
+</robot>

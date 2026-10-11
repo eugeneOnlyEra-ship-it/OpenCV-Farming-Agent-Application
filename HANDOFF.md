@@ -23,12 +23,16 @@ photo → OpenCV 5 + ONNX models → rule table picks a task → (optional) AI p
       → NEW photo (simulated) → re-analysed → result decides the next step → pod's next image
 ```
 
+**Integration update (Oct 11, 2026).** This folder now combines the app and the former `OpenCV-Farming-Agent` PyBullet gantry project. `app_ui.py` is the entry point; `pybullet_sim/bridge.py` maps all 72 application pods to the physical geometry registry, queues a robot camera visit for each logged scan, and routes dispatched work orders to the gantry. When PyBullet is enabled, the old time-based fleet simulator is disabled so work orders are not executed twice. Pause / Resume / Step / Stop are shared through the engine; pause takes effect at a robot-job boundary (the active job is allowed to finish safely), and the run waits for queued robot work to drain before reporting completion.
+
+**Verification caveat for this integration.** Python compilation and all 72 pod-ID/geometry mappings passed in the build environment. A live PyBullet movement test could not run there because `pybullet` is not installed and package-network access was unavailable. The full regression command also did not finish within the sandbox's 5-minute limit, so do not describe that suite as passed. Install `requirements.txt` in the project's Python environment and run `python dev/regression.py` plus a short GUI run before relying on the physical simulation path.
+
 **The five things you most need to know**
 
-1. **Simulated vs real.** Real: the OpenCV analysis, the decision logic, the order/approval/loop logic, the UI. **Simulated:**
-   the four robots (a built-in simulator), the "new photo" after a robot finishes (derived from the old photo, see §9), and
-   everything "cloud" (local stand-ins for S3/Lambda/DynamoDB). **Nothing runs on AWS yet** — that is the competition's
-   biggest gap (§2, §17).
+1. **Simulated vs real.** Real: OpenCV analysis, decision logic, order/approval/loop logic, and UI. **Simulated:**
+   robot motion (the PyBullet gantry when enabled, otherwise the built-in time-based fleet), follow-up frames derived from the
+   configured image/crop-cycle pipeline, and cloud components (local stand-ins for S3/Lambda/DynamoDB). The PyBullet camera
+   does not yet supply the pixels analyzed by OpenCV. **Nothing runs on AWS yet** — that remains the competition's biggest gap.
 2. **Mushroom ground-truth labels look swapped (UNRESOLVED, needs the user's eyes).** See §10.4. `perception.py` is
    untouched and matches the model's own metadata; the correction lives in `crop_cycle.py` behind one switch.
 3. **A real LLM has never been run** against this code (no model could be downloaded in the build sandbox). The "Scripted

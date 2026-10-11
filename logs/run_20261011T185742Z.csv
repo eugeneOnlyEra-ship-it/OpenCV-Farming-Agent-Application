@@ -1,0 +1,5 @@
+timestamp,visit,pod_id,rail,station,side,crop_type,growth_stage,growth_confidence,disease_flag,disease_name,disease_confidence,confidence,action,reason,trend,verified_aspect,ground_truth_stage,ground_truth_diseased,ground_truth_disease_name
+2026-10-11T18:58:05.554897+00:00,19,R1-L-F1,1,0,front,cabbage,S4_5,0.8083738684654236,False,,0.0,0.8083738684654236,log_healthy,"cabbage at S4_5, no disease (0.81 / 0.00 confidence)",stage unchanged (S4_5),growth,S4_5,,
+2026-10-11T18:58:06.523789+00:00,19,R1-L-F2,1,0,front,cabbage,S8,0.47497233748435974,False,,0.0,0.47497233748435974,log_healthy,"cabbage at S8, no disease (0.47 / 0.00 confidence)",stage unchanged (S8),growth,S8,,
+2026-10-11T18:58:11.266840+00:00,20,R1-L-F1,1,0,front,cabbage,S4_5,0.8083738684654236,False,,0.0,0.8083738684654236,log_healthy,"cabbage at S4_5, no disease (0.81 / 0.00 confidence)",stage unchanged (S4_5),growth,S4_5,,
+2026-10-11T18:58:12.449310+00:00,20,R1-L-F2,1,0,front,cabbage,S8,0.47497233748435974,False,,0.0,0.47497233748435974,log_healthy,"cabbage at S8, no disease (0.47 / 0.00 confidence)",stage unchanged (S8),growth,S8,,

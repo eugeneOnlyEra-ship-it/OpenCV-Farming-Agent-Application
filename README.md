@@ -1,10 +1,39 @@
-# OpenCV-Farming-Agent — Data Processing Pipeline (no PyBullet)
+# OpenCV Farming Agent — Integrated Application + PyBullet Gantry
 
-Same perception → decision pipeline as the full PyBullet build, with
-every simulated-robot concept removed: no rail geometry, no movement,
-no rig, no GUI. This is for working on the data processing,
-classification/decision logic, growth tracking, and visual output on
-their own, without a simulation layer in the way.
+This folder combines the OpenCV/ONNX farming application with the PyBullet gantry robot simulation. **Run the integrated application with `python3 app_ui.py`.** The `PyBullet robots` checkbox in the toolbar enables/disables the physical simulation layer.
+
+## What is integrated
+
+- The application remains the source of truth for image classification, decisions, crop history, logs, work-order approval, and follow-up scans.
+- Every normal pod scan queues a corresponding camera-agent visit in PyBullet. The application decision colours the matching simulated pod.
+- Dispatched `TREAT`, `HARVEST`, `RECAPTURE`, `VERIFY`, and `REPLANT` work orders are sent to the PyBullet executor instead of the old time-based simulated fleet. Robot work completes the same order in the application's order book.
+- **Pause / Resume / Step / Stop are shared controls.** Pause prevents new robot jobs from starting while the active physical job finishes safely; Step releases one queued robot job while the app advances its scan step; Stop clears pending robot jobs, lets the current job finish, parks the gantry, and disconnects.
+- The UI does not report the run as finished until its scan work and queued robot work have drained.
+- The previous JSON work-order outbox is preserved for audit.
+
+## Install and run (Fedora/Linux)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+sudo dnf install python3-tkinter
+python dev/integration_smoke.py
+python3 app_ui.py
+```
+
+The PyBullet GUI needs a working desktop display. If PyBullet is not installed or cannot initialise, the application logs a warning and falls back to its original built-in simulated fleet; uncheck **PyBullet robots** to intentionally use that mode. `python dev/integration_smoke.py` verifies the 72-pod mapping and shared control-state logic without requiring PyBullet, but it is not a substitute for a live motion test.
+
+## Important simulation boundary
+
+The gantry movement, camera-head motion, treatment/harvest/replant contact animation, and service markers are simulated in PyBullet. The camera image analyzed by OpenCV still comes from the application's image/frame pipeline; this integration does not yet render the live PyBullet camera view into OpenCV. Crop treatment and harvesting are demonstrations, not validated real-world robotic/agronomic operations. Real AWS services and physical hardware are not included.
+
+---
+
+## Application pipeline reference
+
+This section describes the OpenCV/ONNX data-processing layer that remains the source of truth in the integrated build. The PyBullet robot layer is in `pybullet_sim/`; it consumes scan visits and approved work orders from this application rather than replacing the perception or decision code.
 
 > **Full project documentation for developers / the next assistant: [`HANDOFF.md`](HANDOFF.md).** Regression checks: `python dev/regression.py`; UI screenshots: `dev/ui_screenshots.py`.
 
@@ -28,18 +57,18 @@ For each of 72 pods, every visit:
    every result.
 
 `perception.py`, `agent.py`, `camera.py`, `cloud_pipeline.py`,
-`run_logger.py`, `dynamo_client.py`, `trend.py` are shared with the
-PyBullet project; only `pod_registry.py` (rig geometry stripped out),
-`main.py` (no movement/dwell/GUI), `visualize.py`, and `gallery.py` are
-specific to this build.
+`run_logger.py`, `dynamo_client.py`, and `trend.py` are the application
+layer. The application registry (`pod_registry.py`) holds crop/photo data;
+`pybullet_sim/pod_registry.py` separately holds the physical geometry so
+the two registries can use different pod IDs while mapping the same 72 pods.
 
-## Farm structure (data grouping only, no physical layout)
+## Farm structure (application data model)
 
 3 station rails × 3 stations × 2 sides = 18 physical troughs; each
 trough holds 4 pods (a 3-plant cluster each) → **72 pods, 24 per
 crop**. `rail`/`station`/`side` are kept on every pod as grouping
-metadata (useful for "how did rail 3 do" style breakdowns) even though
-there's no simulated rig to place them in.
+metadata (useful for "how did rail 3 do" style breakdowns) and are mapped
+to the matching rail, station, layer, and side in `pybullet_sim/`.
 
 ## Real images, real ground truth
 
@@ -465,12 +494,6 @@ is what matters everywhere; the wall-clock speedup from it scales with
 how many cores you actually run it on, and should be more pronounced
 on typical multi-core hardware than what this sandbox could show.
 
-## What's deliberately NOT here
+## PyBullet integration boundary
 
-`gantry_robot.py`, `rail_path.py`, the rig geometry constants, the
-`--gui`/`--sleep` flags, dwell times, and the URDF/visual scene
-construction all live only in the PyBullet build. If you need the
-simulated rig back, that's a separate project rather than something
-layered into this one — the point of this version is to have a place
-to iterate on the data/classification/decision/tracking/visualization
-logic without the simulation layer's own moving parts in the way.
+The application registry intentionally remains geometry-free. The gantry model, URDF, and physical pod registry are in `pybullet_sim/`. The OpenCV pipeline still analyses its configured image/frame source; the PyBullet GUI currently visualises robot motion and service actions but does not yet provide the pixels used by OpenCV.

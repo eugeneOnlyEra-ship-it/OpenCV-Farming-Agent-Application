@@ -53,6 +53,7 @@ from farm_engine import (ACTIONS, FarmEngine, Settings, class_scores,   # noqa: 
                          healthy_class)
 from pod_registry import PODS, STATION_LABELS       # noqa: E402
 from worker_planner import ALL_AGENTS, PRIORITY_LABEL   # noqa: E402
+from pybullet_sim.bridge import PyBulletBridge          # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Look & feel
@@ -1363,6 +1364,8 @@ class App(tk.Tk):
         self.engine = None
         self._orders_win = None
         self.auto_approve = True          # master switch: robot orders approved + executed automatically
+        self.pybullet_var = tk.BooleanVar(value=True)
+        self._pybullet_bridge = None
         self.cards = []
         self.settings = Settings()
         self.state = "idle"
@@ -1415,6 +1418,13 @@ class App(tk.Tk):
         for b in (self.start_btn, self.pause_btn, self.step_btn, self.stop_btn):
             b.pack(side="left", padx=3)
         self.save_btn.pack(side="left", padx=(14, 3))
+        self.pybullet_check = tk.Checkbutton(
+            bar, text="PyBullet robots", variable=self.pybullet_var,
+            bg=C["panel"], fg=C["text"], activebackground=C["panel"],
+            activeforeground=C["text"], selectcolor=C["panel2"],
+            font=f["small_b"], cursor="hand2",
+        )
+        self.pybullet_check.pack(side="left", padx=(8, 2))
         self.orders_btn = Btn(bar, "🤖 Robot orders", self.open_orders, "ghost", f["norm_b"])
         self.orders_btn.pack(side="left", padx=3)
         self.auto_btn = Btn(bar, "", self.toggle_auto, "ok", f["norm_b"])
@@ -1723,6 +1733,25 @@ class App(tk.Tk):
         self.update_idletasks()
         perception.warm_up()
         self.engine = FarmEngine(pods, n_slots=n, settings=self.settings, reset_history=self.reset_var.get())
+        self._pybullet_bridge = None
+        if self.pybullet_var.get():
+            bridge = PyBulletBridge(gui=True, on_log=lambda msg, level="info":
+                                    self.engine.events.put(("log", (time.strftime("%H:%M:%S"), level, msg))))
+            ok, detail = bridge.start()
+            if ok:
+                bridge.attach_orders(self.engine.orders)
+                self.engine.simulation_bridge = bridge
+                self.engine.orders.transport = bridge.wrap_transport(self.engine.orders.transport)
+                # Dispatched orders are executed by the PyBullet gantry, not by the
+                # old time-based fleet simulator. This prevents duplicate robot jobs.
+                self.engine.orders.policy.simulate_robots = False
+                self._pybullet_bridge = bridge
+                self.engine.events.put(("log", (time.strftime("%H:%M:%S"), "ok", detail)))
+            else:
+                bridge.request_stop()
+                bridge.join(timeout=2.0)
+                self.engine.events.put(("log", (time.strftime("%H:%M:%S"), "warn",
+                    detail + "; using the built-in fleet simulator instead.")))
         self.reset_var.set(False)
         self.tree.delete(*self.tree.get_children())
         for p in pods:
@@ -1892,7 +1921,10 @@ class App(tk.Tk):
                 chip.config(text=f"{SHORT_ACTION[a]}  {st['actions'][a]}")
             g, d = st["growth"], st["disease"]
             self.acc_chip.set(f"growth {g[0]}/{g[1]}   disease {d[0]}/{d[1]}", C["panel2"], C["text"])
-            self.fleet_strip.update_status(eng.orders.fleet_status())
+            fleet_status = eng.orders.fleet_status()
+            if eng.simulation_bridge is not None:
+                fleet_status = eng.simulation_bridge.fleet_status(fleet_status)
+            self.fleet_strip.update_status(fleet_status)
             for c in self.cards:
                 c.refresh_worker_panels()
             pending = eng.orders.pending_count()

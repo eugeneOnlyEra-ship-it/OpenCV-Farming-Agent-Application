@@ -2,3 +2,6 @@
 # (Verified: the ONNX models give identical detections on OpenCV 4.13 and 5.0.)
 opencv-python==5.0.0.93
 numpy==2.5.3
+
+# Physical gantry/agent simulation integrated with the Tkinter application
+pybullet==3.2.7

@@ -216,6 +216,9 @@ class FarmEngine:
         self.frame_source = SimulatedCamera()          # swap for a real camera source (see frame_source.py)
         self._followup_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="loop")
         self.planner_name = "rules only"
+        # Optional PyBullet executor attached by app_ui.py. Perception remains in
+        # this engine; the bridge only handles physical visits and dispatched orders.
+        self.simulation_bridge = None
 
         self._data_lock = threading.Lock()     # history + logger + counters
         self._queue_lock = threading.Lock()
@@ -262,6 +265,8 @@ class FarmEngine:
             return
         self._paused = True
         self._paused_at = time.time()
+        if self.simulation_bridge is not None:
+            self.simulation_bridge.pause()
         self._set_state("paused")
         self._log("paused - in-flight scans finish, nothing new starts", "warn")
 
@@ -271,6 +276,8 @@ class FarmEngine:
         self._paused_total += time.time() - self._paused_at
         self._paused_at = None
         self._paused = False
+        if self.simulation_bridge is not None:
+            self.simulation_bridge.resume()
         for s in self.slots:
             s.ticket = False
         self._set_state("running")
@@ -283,6 +290,8 @@ class FarmEngine:
         for s in self.slots:
             if not s.hold:
                 s.ticket = True
+        if self.simulation_bridge is not None:
+            self.simulation_bridge.step_once()
 
     def stop(self):
         """Non-blocking graceful stop: waits for in-flight scans, flushes the
@@ -290,6 +299,8 @@ class FarmEngine:
         if self.state in ("stopping", "stopped"):
             return
         self._set_state("stopping")
+        if self.simulation_bridge is not None:
+            self.simulation_bridge.request_stop()
         threading.Thread(target=self._finalize, daemon=True).start()
 
     def close(self, timeout=20.0):
@@ -306,6 +317,8 @@ class FarmEngine:
             self.cloud.shutdown()
         except Exception:
             pass
+        if self.simulation_bridge is not None:
+            self.simulation_bridge.join(timeout=20.0)
         self.orders.shutdown()
         info = self._flush()
         self._t_end = self._t_end or time.time()
@@ -516,11 +529,29 @@ class FarmEngine:
             if all_done:
                 self._completed = True
         if all_done:
-            self._t_end = time.time()
-            info = self._flush()
-            self._set_state("finished")
-            self._log("run complete - log written, you can still review / re-scan any slot", "ok")
-            self.events.put(("finished", info))
+            if self.simulation_bridge is not None:
+                self._log("all perception scans complete; waiting for the PyBullet robot queue to drain")
+                threading.Thread(target=self._finish_after_robot_queue, daemon=True,
+                                 name="wait-for-pybullet-finish").start()
+            else:
+                self._finish_run()
+
+    def _finish_after_robot_queue(self):
+        bridge = self.simulation_bridge
+        if bridge is not None:
+            bridge.wait_until_idle()
+        if self._stop.is_set() or self.state in ("stopping", "stopped"):
+            return
+        self._finish_run()
+
+    def _finish_run(self):
+        if self.state in ("stopping", "stopped", "finished"):
+            return
+        self._t_end = time.time()
+        info = self._flush()
+        self._set_state("finished")
+        self._log("run complete - perception and robot jobs finished; log written", "ok")
+        self.events.put(("finished", info))
 
     def _may_proceed(self, slot):
         if slot.hold:
@@ -758,6 +789,14 @@ class FarmEngine:
         )
 
         if not rescan:
+            # The same scan that drives the UI also schedules the physical camera
+            # agent. Enqueue before planning so any treatment/harvest order created
+            # by this reading follows its camera visit in the robot queue.
+            if self.simulation_bridge is not None:
+                try:
+                    self.simulation_bridge.enqueue_visit(pod, decision)
+                except Exception as exc:
+                    self._log(f"{pod['pod_id']}: could not queue PyBullet camera visit: {exc!r}", "error")
             try:      # a planner problem must never break the scanning lane
                 planned = self.orders.plan_from_result(pod, result, history_rows=hist_rows)
             except Exception as exc:
