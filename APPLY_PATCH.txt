@@ -1,0 +1,14 @@
+Apply from the root of Integrated-OpenCV-Farming-Agent:
+
+cp pybullet_sim/gantry_robot.py pybullet_sim/gantry_robot.py.bak
+cp pybullet_sim/bridge.py pybullet_sim/bridge.py.bak
+cp farm_engine.py farm_engine.py.bak
+
+Then extract this archive into the project root, preserving paths. The archive contains:
+  pybullet_sim/gantry_robot.py
+  pybullet_sim/bridge.py
+  farm_engine.py
+  MULTIVIEW_OPERATIONAL_UPGRADE.md
+
+The project root is the folder containing app_ui.py and farm_engine.py. This patch assumes
+that the prior multi-view localization and vertical-plant patch are already installed.

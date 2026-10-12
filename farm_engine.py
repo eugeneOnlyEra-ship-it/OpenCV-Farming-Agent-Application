@@ -794,7 +794,7 @@ class FarmEngine:
             # by this reading follows its camera visit in the robot queue.
             if self.simulation_bridge is not None:
                 try:
-                    self.simulation_bridge.enqueue_visit(pod, decision)
+                    self.simulation_bridge.enqueue_visit(pod, decision, classification=classification)
                 except Exception as exc:
                     self._log(f"{pod['pod_id']}: could not queue PyBullet camera visit: {exc!r}", "error")
             try:      # a planner problem must never break the scanning lane

@@ -358,6 +358,7 @@ SERVICE_ACTIONS = {
     "water": {"seconds": 0.2, "marker": (0.25, 0.55, 1.0, 1.0)},
     "apply_treatment": {"seconds": 0.4, "marker": (0.75, 0.20, 0.85, 1.0)},
     "harvest": {"seconds": 0.4, "marker": (0.95, 0.58, 0.12, 1.0)},
+    "uproot": {"seconds": 0.35, "marker": (0.55, 0.28, 0.12, 1.0)},
     "replant": {"seconds": 0.3, "marker": (0.25, 0.72, 0.48, 1.0)},
 }
 # To add a new service action: add an entry here, map a decision to it in
@@ -607,6 +608,10 @@ class GantryRobot:
         self.speed_scale = speed_scale
         # --- bookkeeping shared with main.py / verify_motion.py -------------------------------
         self.pod_marker_ids = {}
+        # Each plant is its own removable/replantable PyBullet visual body.
+        self.plant_body_ids = {}       # pod_id -> {plant_index: body_id | None}
+        self.plant_specs = {}          # (pod_id, plant_index) -> geometry recipe
+        self.active_grippers = {}      # service agent key -> animated visual gripper state
         self.service_markers = {}      # pod_id -> body id of the "serviced" tag
         self.service_marker_bounds = {}  # pod_id -> (min, max) AABB, for verify_motion.py
         # Multi-view localization results are keyed by pod ID. Callback is optional
@@ -798,29 +803,29 @@ class GantryRobot:
             )
 
     def _add_plants(self, pod):
-        """Build vertically growing plants on the TOP surface of each trough.
+        """Create each upright plant as an independent removable visual body.
 
-        Each crop uses a small compound visual per pod, keeping the scene cheap to
-        step. Plant centres are above the trough top; leaves spread in X/Y and stems
-        rise along +Z. The service agent still approaches from the aisle side and
-        touches the lower stem/foliage at plant["z"].
+        Individual bodies let the worker visibly harvest/uproot a plant and let a
+        later REPLANT order restore it. Geometry is visual-only, matching the
+        existing lightweight farm scene.
         """
         pos = pod["position_m"]
         crop = pod["crop_type"]
         top_z = TROUGH_HALF_EXTENTS_M[2]
         no_rot = (0, 0, 0, 1)
-        parts = []  # (shape type, radius, length, local position, orientation, rgba)
-
-        def cyl(r, length, x, y, z, rgba):
-            # Default PyBullet cylinder axis is world/local Z: vertical stem.
-            parts.append((p.GEOM_CYLINDER, r, length, (x, y, z), no_rot, rgba))
-
-        def ball(r, x, y, z, rgba):
-            parts.append((p.GEOM_SPHERE, r, 0.0, (x, y, z), no_rot, rgba))
+        self.plant_body_ids.setdefault(pod["pod_id"], {})
 
         for plant in pod["plants"]:
             x = plant["x"] - pos["x"]
             base_z = top_z + 0.008
+            parts = []
+
+            def cyl(r, length, px, py, pz, rgba):
+                parts.append((p.GEOM_CYLINDER, r, length, (px, py, pz), no_rot, rgba))
+
+            def ball(r, px, py, pz, rgba):
+                parts.append((p.GEOM_SPHERE, r, 0.0, (px, py, pz), no_rot, rgba))
+
             if crop == "cabbage":
                 cyl(0.007, 0.075, x, 0.0, base_z + 0.0375, (0.24, 0.43, 0.28, 1.0))
                 ball(0.030, x, 0.0, base_z + 0.065, (0.28, 0.52, 0.36, 1.0))
@@ -831,27 +836,145 @@ class GantryRobot:
                 ball(0.024, x - 0.018, 0.0, base_z + 0.035, (0.55, 0.80, 0.30, 1.0))
                 ball(0.024, x + 0.018, -0.012, base_z + 0.040, (0.42, 0.70, 0.24, 1.0))
                 ball(0.024, x, 0.016, base_z + 0.045, (0.62, 0.82, 0.34, 1.0))
-            else:  # mushroom: upright stem and cap above the trough opening
+            else:
                 cyl(0.008, 0.040, x, 0.0, base_z + 0.020, (0.92, 0.90, 0.82, 1.0))
                 ball(0.026, x, 0.0, base_z + 0.048, (0.62, 0.48, 0.36, 1.0))
 
+            vis = p.createVisualShapeArray(
+                shapeTypes=[q[0] for q in parts], radii=[q[1] for q in parts], lengths=[q[2] for q in parts],
+                halfExtents=[(0, 0, 0)] * len(parts), visualFramePositions=[q[3] for q in parts],
+                visualFrameOrientations=[q[4] for q in parts], rgbaColors=[q[5] for q in parts],
+            )
+            body_id = p.createMultiBody(baseMass=0, baseCollisionShapeIndex=-1,
+                                        baseVisualShapeIndex=vis,
+                                        basePosition=[pos["x"], pos["y"], pos["z"]])
+            index = int(plant["index"])
+            self.plant_body_ids[pod["pod_id"]][index] = body_id
+            self.plant_specs[(pod["pod_id"], index)] = {
+                "pod": pod, "plant": plant, "crop": crop,
+            }
             h = PLANT_HALF_SIZE_M
-            lo_y, hi_y = plant["y_wall"] - h, plant["y_wall"] + h
             self.obstacles.append((
-                f"plant {pod['pod_id']}:{plant['index']}",
-                (plant["x"] - h, lo_y, pos["z"] + top_z),
-                (plant["x"] + h, hi_y, pos["z"] + top_z + 0.105),
+                f"plant {pod['pod_id']}:{index}",
+                (plant["x"] - h, pos["y"] - h, pos["z"] + top_z),
+                (plant["x"] + h, pos["y"] + h, pos["z"] + top_z + 0.105),
             ))
 
-        n = len(parts)
-        assert n <= MAX_SHAPES_PER_COMPOUND, f"{n} shapes in one compound visual (max {MAX_SHAPES_PER_COMPOUND})"
-        vis = p.createVisualShapeArray(
-            shapeTypes=[q[0] for q in parts], radii=[q[1] for q in parts], lengths=[q[2] for q in parts],
-            halfExtents=[(0, 0, 0)] * n, visualFramePositions=[q[3] for q in parts],
-            visualFrameOrientations=[q[4] for q in parts], rgbaColors=[q[5] for q in parts],
-        )
-        p.createMultiBody(baseMass=0, baseCollisionShapeIndex=-1, baseVisualShapeIndex=vis,
-                          basePosition=[pos["x"], pos["y"], pos["z"]])
+    def _restore_plant_body(self, pod, plant_index):
+        """Restore a plant removed by harvest/uproot, if it is currently absent."""
+        plant_index = int(plant_index)
+        current = self.plant_body_ids.get(pod["pod_id"], {}).get(plant_index)
+        if current is not None:
+            return current
+        spec = self.plant_specs.get((pod["pod_id"], plant_index))
+        if spec is None:
+            return None
+        plant = spec["plant"]
+        crop = spec["crop"]
+        pos = pod["position_m"]
+        x = plant["x"] - pos["x"]
+        base_z = TROUGH_HALF_EXTENTS_M[2] + 0.008
+        no_rot = (0, 0, 0, 1)
+        parts = []
+        def cyl(r, length, px, py, pz, rgba):
+            parts.append((p.GEOM_CYLINDER, r, length, (px, py, pz), no_rot, rgba))
+        def ball(r, px, py, pz, rgba):
+            parts.append((p.GEOM_SPHERE, r, 0.0, (px, py, pz), no_rot, rgba))
+        if crop == "cabbage":
+            cyl(0.007, 0.075, x, 0.0, base_z + 0.0375, (0.24, 0.43, 0.28, 1.0))
+            ball(0.030, x, 0.0, base_z + 0.065, (0.28, 0.52, 0.36, 1.0))
+            ball(0.023, x - 0.018, -0.014, base_z + 0.045, (0.42, 0.66, 0.42, 1.0))
+            ball(0.023, x + 0.018, 0.014, base_z + 0.045, (0.55, 0.76, 0.56, 1.0))
+        elif crop == "lettuce":
+            cyl(0.006, 0.055, x, 0.0, base_z + 0.0275, (0.25, 0.48, 0.20, 1.0))
+            ball(0.024, x - 0.018, 0.0, base_z + 0.035, (0.55, 0.80, 0.30, 1.0))
+            ball(0.024, x + 0.018, -0.012, base_z + 0.040, (0.42, 0.70, 0.24, 1.0))
+            ball(0.024, x, 0.016, base_z + 0.045, (0.62, 0.82, 0.34, 1.0))
+        else:
+            cyl(0.008, 0.040, x, 0.0, base_z + 0.020, (0.92, 0.90, 0.82, 1.0))
+            ball(0.026, x, 0.0, base_z + 0.048, (0.62, 0.48, 0.36, 1.0))
+        vis = p.createVisualShapeArray(shapeTypes=[q[0] for q in parts], radii=[q[1] for q in parts],
+            lengths=[q[2] for q in parts], halfExtents=[(0, 0, 0)] * len(parts),
+            visualFramePositions=[q[3] for q in parts], visualFrameOrientations=[q[4] for q in parts],
+            rgbaColors=[q[5] for q in parts])
+        body_id = p.createMultiBody(baseMass=0, baseCollisionShapeIndex=-1,
+            baseVisualShapeIndex=vis, basePosition=[pos["x"], pos["y"], pos["z"]])
+        self.plant_body_ids[pod["pod_id"]][plant_index] = body_id
+        return body_id
+
+    def _start_gripper(self, agent, pod, plant_index):
+        """Create two visible gripper jaws that follow the service tool tip."""
+        self._end_gripper(agent)
+        finger_shape = p.createVisualShape(p.GEOM_BOX, halfExtents=[0.006, 0.009, 0.022],
+                                           rgbaColor=(0.12, 0.15, 0.18, 1.0))
+        tip = self.applicator_tip(agent)
+        ids = []
+        for sign in (-1, 1):
+            ids.append(p.createMultiBody(baseMass=0, baseCollisionShapeIndex=-1,
+                baseVisualShapeIndex=finger_shape,
+                basePosition=[tip[0] + sign * 0.018, tip[1], tip[2]]))
+        self.active_grippers[agent.key] = {
+            "agent": agent, "finger_ids": ids, "gap": 0.018,
+            "pod": pod, "plant_index": int(plant_index), "carrying": False,
+            "plant_base_start": None, "tip_z_start": None,
+        }
+
+    def _end_gripper(self, agent):
+        state = self.active_grippers.pop(agent.key, None)
+        if state:
+            for body_id in state["finger_ids"]:
+                try:
+                    p.removeBody(body_id)
+                except Exception:
+                    pass
+
+    def _sync_grippers(self):
+        for state in list(self.active_grippers.values()):
+            agent = state["agent"]
+            tip = self.applicator_tip(agent)
+            gap = state["gap"]
+            for body_id, sign in zip(state["finger_ids"], (-1, 1)):
+                p.resetBasePositionAndOrientation(body_id,
+                    [tip[0] + sign * gap, tip[1], tip[2]], [0, 0, 0, 1])
+            if state["carrying"]:
+                pod = state["pod"]
+                plant_index = state["plant_index"]
+                body_id = self.plant_body_ids.get(pod["pod_id"], {}).get(plant_index)
+                if body_id is not None:
+                    base = state["plant_base_start"]
+                    dz = tip[2] - state["tip_z_start"]
+                    p.resetBasePositionAndOrientation(body_id,
+                        [base[0], base[1], base[2] + dz], [0, 0, 0, 1])
+
+    def _g_remove_plant(self, agent, pod, plant_index, *, lift=True):
+        """Grip, lift visibly, then remove one plant body from the trough."""
+        body_id = self.plant_body_ids.get(pod["pod_id"], {}).get(int(plant_index))
+        if body_id is None:
+            return
+        self._start_gripper(agent, pod, plant_index)
+        yield from self._g_settle({agent.applicator_joint: APPLICATOR_STROKE_M})
+        state = self.active_grippers[agent.key]
+        state["gap"] = 0.008  # close the two jaws around the stem
+        self._emit("plant_grasp", pod, agent=agent, plant=int(plant_index))
+        yield from self._g_wait(0.12)
+        if lift:
+            base, _ = p.getBasePositionAndOrientation(body_id)
+            tip_z = self.applicator_tip(agent)[2]
+            state["carrying"] = True
+            state["plant_base_start"] = list(base)
+            state["tip_z_start"] = tip_z
+            start_extension = self._joint(agent.joint)
+            yield from self._g_settle({agent.joint: max(0.0, start_extension - 0.12)})
+            yield from self._g_wait(0.12)
+        state["carrying"] = False
+        self._end_gripper(agent)
+        p.removeBody(body_id)
+        self.plant_body_ids[pod["pod_id"]][int(plant_index)] = None
+        self._emit("plant_removed", pod, agent=agent, plant=int(plant_index), operation="uprooted")
+        yield from self._g_settle({agent.applicator_joint: 0.0})
+        if lift:
+            # Return the tool to the plant working height before moving to the next plant.
+            yield from self._g_settle({agent.joint: start_extension})
 
     def _add_static_box(self, name, half_extents, position, color):
         """Create a visual-only box and record its bounding box in self.obstacles
@@ -1199,6 +1322,7 @@ class GantryRobot:
         p.stepSimulation()
         self.sim_steps += 1
         self._sync_rods()
+        self._sync_grippers()
         if step_sleep:
             time.sleep(step_sleep)
         if self.on_step is not None:
@@ -1451,44 +1575,70 @@ class GantryRobot:
                 yield from self._g_wait(CAMERA_PLANT_SECONDS)
             direction = -direction
 
-            # Estimate the pod's 3D pose before releasing the service agent. The
-            # segmentation mask is simulator-only ground-truth masking; RGB/depth
-            # and per-view calibration are retained for later OpenCV detector work.
+            # (3) Analyse the application image first. The callback returns the
+            # model scores/decision already produced by the OpenCV pipeline.
+            # Multi-view pose calculations run after those scores are available.
+            self._emit("assess", pod, agent=cam)
+            result = assess(pod) or {}
+            shared["assessed"][pod["pod_id"]] = result
+
+            # Save and run the existing OpenCV/ONNX models on the actual rendered
+            # camera views before doing the multi-view pose calculation. Synthetic
+            # render scores are diagnostics only; task choice remains grounded in
+            # the application's real-image model result passed into this visit.
+            capture_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs", "multiview")
+            os.makedirs(capture_dir, exist_ok=True)
+            image_paths = []
+            view_model_scores = []
+            try:
+                from perception import classify_pod
+            except Exception:
+                classify_pod = None
+            for view in views:
+                rgba = view.get("rgba")
+                if rgba is None:
+                    view_model_scores.append({"error": "camera frame missing"})
+                    continue
+                path = os.path.join(capture_dir,
+                    f"{pod['pod_id']}_view{int(view['view_index']) + 1}.png")
+                bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+                cv2.imwrite(path, bgr)
+                image_paths.append(path)
+                if classify_pod is None:
+                    view_model_scores.append({"error": "OpenCV perception import unavailable"})
+                    continue
+                try:
+                    rendered_result = classify_pod(pod["pod_id"], pod["crop_type"], bgr)
+                    view_model_scores.append({
+                        "view_index": int(view["view_index"]),
+                        "growth_stage": rendered_result.get("growth_stage"),
+                        "growth_confidence": float(rendered_result.get("growth_confidence", 0.0)),
+                        "disease_flag": bool(rendered_result.get("disease_flag", False)),
+                        "disease_name": rendered_result.get("disease_name"),
+                        "disease_confidence": float(rendered_result.get("disease_confidence", 0.0)),
+                        "growth_detection_count": len(rendered_result.get("growth_detections", [])),
+                        "disease_detection_count": len(rendered_result.get("disease_detections", [])),
+                    })
+                except Exception as exc:
+                    # A missing model or poor synthetic frame must not crash robot
+                    # calibration; the reason is preserved in the pose record.
+                    view_model_scores.append({"view_index": int(view["view_index"]),
+                                              "error": repr(exc)})
             pose = estimate_pod_pose(
                 views, pod["pod_id"], self.pod_marker_ids[pod["pod_id"]],
                 pod["side"], TROUGH_HALF_EXTENTS_M)
+            pose["model_scores"] = result.get("model_scores") or result.get("classification") or {}
+            pose["decision"] = result.get("decision") or {}
+            pose["camera_view_model_scores"] = view_model_scores
+            pose["captured_image_paths"] = image_paths
             self.localization_records[pod["pod_id"]] = pose
             shared.setdefault("localization", {})[pod["pod_id"]] = pose
             if self.on_localization is not None:
                 self.on_localization(dict(pose))
             self._emit("pod_localized", pod, agent=cam, valid=pose["valid"],
                        point_count=pose["point_count"], view_count=pose["view_count"],
-                       yaw_deg=pose["orientation_yaw_deg"])
-            if pose["valid"] and pose["center_world"] is not None:
-                # Use the vision-derived centre for the worker's target. Translate
-                # plant target coordinates by the same measured centre correction.
-                old = pod["position_m"]
-                new = pose["center_world"]
-                delta = {"x": new[0] - old["x"], "y": new[1] - old["y"],
-                         "z": new[2] - old["z"]}
-                pod["position_m"] = {"x": new[0], "y": new[1], "z": new[2]}
-                for plant in pod.get("plants", []):
-                    if "x" in plant:
-                        plant["x"] += delta["x"]
-                    if "z" in plant:
-                        plant["z"] += delta["z"]
-                    if "y" in plant:
-                        plant["y"] += delta["y"]
-                    if "y_wall" in plant:
-                        plant["y_wall"] += delta["y"]
-                    if "y_front" in plant:
-                        plant["y_front"] += delta["y"]
-
-            # (3) every plant imaged -> assess the pod. assess() is main.py's callback: it runs the
-            #     classifier + decision agent, logs, recolours the trough, and returns the service plan.
-            self._emit("assess", pod, agent=cam)
-            result = assess(pod) or {}
-            shared["assessed"][pod["pod_id"]] = result
+                       yaw_deg=pose["orientation_yaw_deg"],
+                       model_score_count=len(pose["model_scores"]) if isinstance(pose["model_scores"], dict) else 0)
             yield from self._g_wait(result.get("camera_dwell", CAMERA_CAPTURE_SECONDS))
 
         # (4) move on. Only AFTER this move is "camera_left" published, which releases the service agent.
@@ -1524,7 +1674,12 @@ class GantryRobot:
                            reason="pod localization confidence insufficient")
                 continue
             service_z = float(pod["plants"][0].get("z", pod["position_m"]["z"]))
-            yield from self._g_settle({svc.joint: hoist_extension_for(service_z)})
+            nominal = pod["position_m"]
+            estimated = pose.get("center_world") or [nominal["x"], nominal["y"], nominal["z"]]
+            pose_dx = float(estimated[0]) - float(nominal["x"])
+            pose_dz = float(estimated[2]) - float(nominal["z"])
+            working_hoist = hoist_extension_for(service_z + pose_dz)
+            yield from self._g_settle({svc.joint: working_hoist})
             # current_service / current_plant tell verify_motion.py which ONE plant the pad is
             # allowed to touch right now; every other contact is a violation.
             self._emit("service_start", pod, agent=svc, action=action,
@@ -1532,18 +1687,45 @@ class GantryRobot:
                        target_yaw_deg=pose.get("orientation_yaw_deg"),
                        pose_confidence=pose.get("confidence_score"))
             self.current_service[svc.key] = pod["pod_id"]
+            service_result = shared["assessed"][pod["pod_id"]]
+            target_indices = service_result.get("plant_indices")
+            if target_indices is None:
+                target_indices = list(range(PLANTS_PER_POD))
+            target_indices = {int(k) for k in target_indices}
             for k in self._plant_order(PLANTS_PER_POD, direction):
-                yield from self._g_settle(self.stage_cmd(svc, self.stage_target_for_plant(svc, pod, k)))
+                if k not in target_indices:
+                    continue
+                if action == "replant":
+                    self._restore_plant_body(pod, k)
+                elif action in ("uproot", "harvest"):
+                    if self.plant_body_ids.get(pod["pod_id"], {}).get(k) is None:
+                        continue
+                # Use the vision-derived X/Z correction for engagement; the true scene
+                # geometry remains unchanged so localization error stays measurable.
+                target = self.stage_target_for_plant(svc, pod, k) + pose_dx
+                yield from self._g_settle(self.stage_cmd(svc, target))
                 self.current_plant[svc.key] = k
-                yield from self._g_settle({svc.applicator_joint: APPLICATOR_STROKE_M})   # reach out and touch
-                self._emit("service_contact", pod, agent=svc, action=action, plant=k)
-                yield from self._g_wait(SERVICE_ACTIONS[action]["seconds"])              # hold contact
-                yield from self._g_settle({svc.applicator_joint: 0.0})                   # pull back first
+                if action in ("uproot", "harvest"):
+                    yield from self._g_remove_plant(svc, pod, k, lift=True)
+                    self._emit("service_contact", pod, agent=svc, action=action, plant=k)
+                elif action == "replant":
+                    yield from self._g_settle({svc.applicator_joint: APPLICATOR_STROKE_M})
+                    self._emit("plant_replanted", pod, agent=svc, plant=k)
+                    yield from self._g_wait(SERVICE_ACTIONS[action]["seconds"])
+                    yield from self._g_settle({svc.applicator_joint: 0.0})
+                else:
+                    yield from self._g_settle({svc.applicator_joint: APPLICATOR_STROKE_M})
+                    self._emit("service_contact", pod, agent=svc, action=action, plant=k)
+                    yield from self._g_wait(SERVICE_ACTIONS[action]["seconds"])
+                    yield from self._g_settle({svc.applicator_joint: 0.0})
                 self.current_plant[svc.key] = None
+            # If whole-plant removal was approved, this is now visibly empty. Replant
+            # orders rebuild only the missing plant bodies at their original positions.
             direction = -direction
             self.current_service[svc.key] = None
             self._add_service_marker(pod, action)
-            self._emit("service_done", pod, agent=svc, action=action)
+            self._emit("service_done", pod, agent=svc, action=action,
+                       plants_remaining=sum(v is not None for v in self.plant_body_ids.get(pod["pod_id"], {}).values()))
         yield from self._g_settle(self.stage_cmd(svc, 0.0))
         yield from self._g_settle({svc.joint: 0.0})
 
