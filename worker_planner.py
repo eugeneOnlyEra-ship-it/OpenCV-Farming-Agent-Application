@@ -642,6 +642,16 @@ class OrderBook:
                 self._write(o)
         self._changed()
 
+    def fail(self, order_id, note="robot action failed"):
+        """Mark an in-progress robot order failed when safety checks prevent execution."""
+        with self._lock:
+            o = self._orders.get(order_id)
+            if not o or o.status not in ("in_progress", "dispatched", "approved"):
+                return False
+            self._set(o, "failed", note)
+        self._changed()
+        return True
+
     def complete(self, order_id, note="completed"):
         with self._lock:
             o = self._orders.get(order_id)

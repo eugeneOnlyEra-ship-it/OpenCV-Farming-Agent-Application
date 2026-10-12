@@ -1,0 +1,1384 @@
+{
+  "updated_utc": "2026-10-12T18:01:02Z",
+  "pod_count": 13,
+  "poses": {
+    "R1-L-F1": {
+      "pod_id": "R1-L-F1",
+      "timestamp_utc": "2026-10-12T17:54:24.979234+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        7.266463291513703e-05,
+        0.1761855931101748,
+        0.2808873424549729
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.00804152064594754,
+        0.9999676664501211
+      ],
+      "orientation_yaw_rad": 0.016083214634742937,
+      "orientation_yaw_deg": 0.9215003195738102,
+      "estimated_visible_dimensions_m": [
+        0.4224544292220429,
+        0.12732810727832009,
+        0.08570570624016302
+      ],
+      "geometry_residual_m": 0.03733283523705423,
+      "point_count": 55212,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            0.505,
+            0.5459138204522229
+          ],
+          "target_pixels": 17537,
+          "image_bbox_xywh": [
+            39,
+            92,
+            254,
+            115
+          ],
+          "reconstructed_points": 17537
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.0021006499653115907,
+            0.505,
+            0.5450001796818205
+          ],
+          "target_pixels": 19472,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19472
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.1078976927392258,
+            0.505,
+            0.5450000000353308
+          ],
+          "target_pixels": 18203,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18203
+        }
+      ],
+      "sim_pod_id": "R0C0-L0-F"
+    },
+    "R1-L-F2": {
+      "pod_id": "R1-L-F2",
+      "timestamp_utc": "2026-10-12T17:55:35.535608+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        9.016511110411518e-05,
+        0.17391134575861122,
+        0.7008934572044685
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.00531690644344079,
+        0.9999858651530389
+      ],
+      "orientation_yaw_rad": 0.010633862989604115,
+      "orientation_yaw_deg": 0.6092754692246838,
+      "estimated_visible_dimensions_m": [
+        0.4224246270810593,
+        0.13187656792342328,
+        0.08567247344908491
+      ],
+      "geometry_residual_m": 0.033444710359854114,
+      "point_count": 55682,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            0.505,
+            0.9659138204522228
+          ],
+          "target_pixels": 17768,
+          "image_bbox_xywh": [
+            39,
+            90,
+            254,
+            117
+          ],
+          "reconstructed_points": 17768
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.0021006499653115907,
+            0.505,
+            0.9650001796818204
+          ],
+          "target_pixels": 19633,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19633
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.1078976927392258,
+            0.505,
+            0.9650000000353307
+          ],
+          "target_pixels": 18281,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18281
+        }
+      ],
+      "sim_pod_id": "R0C0-L1-F"
+    },
+    "R1-L-F3": {
+      "pod_id": "R1-L-F3",
+      "timestamp_utc": "2026-10-12T17:56:01.284239+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        8.669037558473036e-05,
+        0.17796832022546571,
+        1.1208766606760459
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.0035408661682719937,
+        0.9999937311137397
+      ],
+      "orientation_yaw_rad": 0.007081747134772609,
+      "orientation_yaw_deg": 0.4057542224013339,
+      "estimated_visible_dimensions_m": [
+        0.4227747745668511,
+        0.12376287266185335,
+        0.08572214327153871
+      ],
+      "geometry_residual_m": 0.040350190174683165,
+      "point_count": 54654,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            0.505,
+            1.385913820452223
+          ],
+          "target_pixels": 17410,
+          "image_bbox_xywh": [
+            39,
+            90,
+            254,
+            117
+          ],
+          "reconstructed_points": 17410
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.0021006499653115907,
+            0.505,
+            1.3850001796818205
+          ],
+          "target_pixels": 19291,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19291
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.1078976927392258,
+            0.505,
+            1.3850000000353306
+          ],
+          "target_pixels": 17953,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 17953
+        }
+      ],
+      "sim_pod_id": "R0C0-L2-F"
+    },
+    "R1-L-F4": {
+      "pod_id": "R1-L-F4",
+      "timestamp_utc": "2026-10-12T17:56:08.733633+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        -0.0009209062673022628,
+        0.17630486343291835,
+        1.5408829118730303
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.003687518463550885,
+        0.9999932010806778
+      ],
+      "orientation_yaw_rad": 0.007375053641240914,
+      "orientation_yaw_deg": 0.42255944732569434,
+      "estimated_visible_dimensions_m": [
+        0.42418964925530256,
+        0.1270893195608317,
+        0.08594998929830377
+      ],
+      "geometry_residual_m": 0.036735305420307375,
+      "point_count": 56408,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            0.505,
+            1.8059138204522227
+          ],
+          "target_pixels": 18156,
+          "image_bbox_xywh": [
+            39,
+            92,
+            254,
+            121
+          ],
+          "reconstructed_points": 18156
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.002100649965231474,
+            0.505,
+            1.8050001796818202
+          ],
+          "target_pixels": 19866,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19866
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.10789769273922585,
+            0.505,
+            1.8050000000353303
+          ],
+          "target_pixels": 18386,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18386
+        }
+      ],
+      "sim_pod_id": "R0C0-L3-F"
+    },
+    "R1-L-B1": {
+      "pod_id": "R1-L-B1",
+      "timestamp_utc": "2026-10-12T17:56:17.167732+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.0007856016473951483,
+        -0.18178370722020307,
+        0.28086870335385833
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        -0.001471811485557706,
+        0.999998916884889
+      ],
+      "orientation_yaw_rad": -0.002943624033876713,
+      "orientation_yaw_deg": -0.1686572336144101,
+      "estimated_visible_dimensions_m": [
+        0.42451424308870045,
+        0.11613964758150129,
+        0.08605447181156228
+      ],
+      "geometry_residual_m": 0.04668089945659278,
+      "point_count": 54807,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            -0.505,
+            0.5459138204522229
+          ],
+          "target_pixels": 17652,
+          "image_bbox_xywh": [
+            28,
+            92,
+            254,
+            121
+          ],
+          "reconstructed_points": 17652
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.002100991631221835,
+            -0.505,
+            0.5450001796818205
+          ],
+          "target_pixels": 19322,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19322
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.10789734513863648,
+            -0.505,
+            0.5450000000353308
+          ],
+          "target_pixels": 17833,
+          "image_bbox_xywh": [
+            38,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 17833
+        }
+      ],
+      "sim_pod_id": "R0C0-L0-B"
+    },
+    "R1-L-B2": {
+      "pod_id": "R1-L-B2",
+      "timestamp_utc": "2026-10-12T17:57:07.973275+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.0017982469665367012,
+        -0.17710309404369823,
+        0.7008873515721307
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        -0.0009252530528717029,
+        0.9999995719533025
+      ],
+      "orientation_yaw_rad": -0.0018505063697777935,
+      "orientation_yaw_deg": -0.10602620495034284,
+      "estimated_visible_dimensions_m": [
+        0.42268569807623957,
+        0.1255006689865507,
+        0.08573664602400688
+      ],
+      "geometry_residual_m": 0.038835101114935884,
+      "point_count": 54554,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            -0.505,
+            0.9659275033200152
+          ],
+          "target_pixels": 17481,
+          "image_bbox_xywh": [
+            28,
+            90,
+            254,
+            117
+          ],
+          "reconstructed_points": 17481
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.002100990651201215,
+            -0.505,
+            0.9650001823722423
+          ],
+          "target_pixels": 19261,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19261
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.10789734513947266,
+            -0.505,
+            0.9650000000358594
+          ],
+          "target_pixels": 17812,
+          "image_bbox_xywh": [
+            38,
+            93,
+            256,
+            120
+          ],
+          "reconstructed_points": 17812
+        }
+      ],
+      "sim_pod_id": "R0C0-L1-B"
+    },
+    "R1-L-B3": {
+      "pod_id": "R1-L-B3",
+      "timestamp_utc": "2026-10-12T17:57:41.336195+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.0017938283675208166,
+        -0.17408655576441842,
+        1.1208955179483702
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        -0.00465802582375796,
+        0.9999891513388659
+      ],
+      "orientation_yaw_rad": -0.009316085336557922,
+      "orientation_yaw_deg": -0.533772371368482,
+      "estimated_visible_dimensions_m": [
+        0.42262588618871305,
+        0.1315334304423732,
+        0.08572883460913205
+      ],
+      "geometry_residual_m": 0.03362213953487947,
+      "point_count": 54908,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.11,
+            -0.505,
+            1.3859275033200154
+          ],
+          "target_pixels": 17505,
+          "image_bbox_xywh": [
+            28,
+            90,
+            254,
+            117
+          ],
+          "reconstructed_points": 17505
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.002100990651201215,
+            -0.505,
+            1.3850001823722426
+          ],
+          "target_pixels": 19388,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19388
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.10789734513947266,
+            -0.505,
+            1.3850000000358595
+          ],
+          "target_pixels": 18015,
+          "image_bbox_xywh": [
+            38,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18015
+        }
+      ],
+      "sim_pod_id": "R0C0-L2-B"
+    },
+    "R1-L-B4": {
+      "pod_id": "R1-L-B4",
+      "timestamp_utc": "2026-10-12T17:58:14.257270+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.0016273380664491993,
+        -0.1815823997985377,
+        1.5408695421840481
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        -0.0047070671350464355,
+        0.9999889216981287
+      ],
+      "orientation_yaw_rad": -0.009414169034454023,
+      "orientation_yaw_deg": -0.5393921532969648,
+      "estimated_visible_dimensions_m": [
+        0.4230905526366837,
+        0.11654233179872057,
+        0.08577514572714384
+      ],
+      "geometry_residual_m": 0.04682251305998139,
+      "point_count": 53792,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            -0.10999999993540804,
+            -0.505,
+            1.805927503320015
+          ],
+          "target_pixels": 17110,
+          "image_bbox_xywh": [
+            28,
+            92,
+            254,
+            114
+          ],
+          "reconstructed_points": 17110
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            -0.0021009916375132054,
+            -0.505,
+            1.8050001823722424
+          ],
+          "target_pixels": 18989,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 18989
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.10789734513855175,
+            -0.505,
+            1.8050000000358595
+          ],
+          "target_pixels": 17693,
+          "image_bbox_xywh": [
+            38,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 17693
+        }
+      ],
+      "sim_pod_id": "R0C0-L3-B"
+    },
+    "R1-M-F1": {
+      "pod_id": "R1-M-F1",
+      "timestamp_utc": "2026-10-12T17:58:03.172772+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.7491073064867855,
+        0.17407921908870197,
+        0.28089339983118006
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.0005263184154337121,
+        0.9999998614944532
+      ],
+      "orientation_yaw_rad": 0.0010526368794661067,
+      "orientation_yaw_deg": 0.06031165055322907,
+      "estimated_visible_dimensions_m": [
+        0.4241312843982863,
+        0.13154058997795381,
+        0.08591347896739293
+      ],
+      "geometry_residual_m": 0.03283982045932887,
+      "point_count": 56999,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            0.6399999999999996,
+            0.505,
+            0.5459138204522229
+          ],
+          "target_pixels": 18429,
+          "image_bbox_xywh": [
+            39,
+            90,
+            254,
+            123
+          ],
+          "reconstructed_points": 18429
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            0.747899348975587,
+            0.505,
+            0.5450001796818205
+          ],
+          "target_pixels": 20070,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 20070
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.8578976927382198,
+            0.505,
+            0.5450000000353308
+          ],
+          "target_pixels": 18500,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18500
+        }
+      ],
+      "sim_pod_id": "R0C1-L0-F"
+    },
+    "R1-M-F2": {
+      "pod_id": "R1-M-F2",
+      "timestamp_utc": "2026-10-12T17:58:30.252840+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.7491193876230677,
+        0.17805791921666525,
+        0.7008766597418858
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        -0.0003229213170875682,
+        0.9999999478609102
+      ],
+      "orientation_yaw_rad": -0.0006458426453996857,
+      "orientation_yaw_deg": -0.037004057810966204,
+      "estimated_visible_dimensions_m": [
+        0.4243590770924135,
+        0.12358338461519705,
+        0.08599207767120776
+      ],
+      "geometry_residual_m": 0.03983555932680453,
+      "point_count": 55817,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            0.6399999999999996,
+            0.505,
+            0.9659138204522228
+          ],
+          "target_pixels": 18014,
+          "image_bbox_xywh": [
+            39,
+            90,
+            254,
+            123
+          ],
+          "reconstructed_points": 18014
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            0.747899348975587,
+            0.505,
+            0.9650001796818204
+          ],
+          "target_pixels": 19673,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19673
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.8578976927382198,
+            0.505,
+            0.9650000000353307
+          ],
+          "target_pixels": 18130,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18130
+        }
+      ],
+      "sim_pod_id": "R0C1-L1-F"
+    },
+    "R1-M-F3": {
+      "pod_id": "R1-M-F3",
+      "timestamp_utc": "2026-10-12T18:00:36.496604+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.750049954918216,
+        0.1761802656241977,
+        1.1208872844060882
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.008164988076503132,
+        0.9999666659292752
+      ],
+      "orientation_yaw_rad": 0.016330157603619,
+      "orientation_yaw_deg": 0.935649109470839,
+      "estimated_visible_dimensions_m": [
+        0.42250090369236604,
+        0.12733886105774542,
+        0.08569122429193943
+      ],
+      "geometry_residual_m": 0.03730326951744955,
+      "point_count": 55176,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            0.6399999999999996,
+            0.505,
+            1.385913820452223
+          ],
+          "target_pixels": 17526,
+          "image_bbox_xywh": [
+            39,
+            92,
+            254,
+            115
+          ],
+          "reconstructed_points": 17526
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            0.747899348975587,
+            0.505,
+            1.3850001796818205
+          ],
+          "target_pixels": 19459,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19459
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.8578976927382198,
+            0.505,
+            1.3850000000353306
+          ],
+          "target_pixels": 18191,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18191
+        }
+      ],
+      "sim_pod_id": "R0C1-L2-F"
+    },
+    "R1-M-F4": {
+      "pod_id": "R1-M-F4",
+      "timestamp_utc": "2026-10-12T18:01:02.771353+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.7500901792294934,
+        0.17391172114224485,
+        1.5408946504521936
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.00530391140822697,
+        0.999985934162963
+      ],
+      "orientation_yaw_rad": 0.01060787255270279,
+      "orientation_yaw_deg": 0.6077863268825369,
+      "estimated_visible_dimensions_m": [
+        0.42242726915947315,
+        0.1318756701742451,
+        0.0856723412789937
+      ],
+      "geometry_residual_m": 0.03344409405779969,
+      "point_count": 55686,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            0.6400000000000005,
+            0.505,
+            1.805927503320015
+          ],
+          "target_pixels": 17769,
+          "image_bbox_xywh": [
+            39,
+            90,
+            254,
+            117
+          ],
+          "reconstructed_points": 17769
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            0.7478993501094131,
+            0.505,
+            1.8050001823722424
+          ],
+          "target_pixels": 19634,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19634
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.8578976927392808,
+            0.505,
+            1.8050000000358595
+          ],
+          "target_pixels": 18283,
+          "image_bbox_xywh": [
+            27,
+            90,
+            256,
+            123
+          ],
+          "reconstructed_points": 18283
+        }
+      ],
+      "sim_pod_id": "R0C1-L3-F"
+    },
+    "R1-M-B1": {
+      "pod_id": "R1-M-B1",
+      "timestamp_utc": "2026-10-12T18:00:43.415330+00:00",
+      "coordinate_frame": "pybullet_world",
+      "method": "multi_view_rgbd_depth_with_simulator_segmentation",
+      "valid": true,
+      "confidence_score": 1.0,
+      "confidence_score_type": "heuristic_not_probability",
+      "center_world": [
+        0.7508584291174514,
+        -0.17721310041032562,
+        0.2808835129612169
+      ],
+      "orientation_quaternion_xyzw": [
+        0.0,
+        0.0,
+        0.002932565097120312,
+        0.9999957000217307
+      ],
+      "orientation_yaw_rad": 0.005865138600899211,
+      "orientation_yaw_deg": 0.33604768809078933,
+      "estimated_visible_dimensions_m": [
+        0.424282713561274,
+        0.12528069624316354,
+        0.08600808509660732
+      ],
+      "geometry_residual_m": 0.03831968855500221,
+      "point_count": 55752,
+      "view_count": 3,
+      "contributing_view_count": 3,
+      "camera_matrix": [
+        [
+          216.48573063257084,
+          0.0,
+          160.0
+        ],
+        [
+          0.0,
+          216.48573063257084,
+          120.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion_coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "views": [
+        {
+          "view_index": 0,
+          "camera_position_world": [
+            0.6399999999999996,
+            -0.505,
+            0.5459138204522229
+          ],
+          "target_pixels": 18095,
+          "image_bbox_xywh": [
+            28,
+            90,
+            254,
+            123
+          ],
+          "reconstructed_points": 18095
+        },
+        {
+          "view_index": 1,
+          "camera_position_world": [
+            0.7478990096158642,
+            -0.505,
+            0.5450001796818205
+          ],
+          "target_pixels": 19659,
+          "image_bbox_xywh": [
+            21,
+            100,
+            279,
+            86
+          ],
+          "reconstructed_points": 19659
+        },
+        {
+          "view_index": 2,
+          "camera_position_world": [
+            0.8578973451397038,
+            -0.505,
+            0.5450000000353308
+          ],
+          "target_pixels": 17998,
+          "image_bbox_xywh": [
+            38,
+            93,
+            256,
+            120
+          ],
+          "reconstructed_points": 17998
+        }
+      ],
+      "sim_pod_id": "R0C1-L0-B"
+    }
+  }
+}

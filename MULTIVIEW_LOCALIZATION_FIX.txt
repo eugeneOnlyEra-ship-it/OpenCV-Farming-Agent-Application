@@ -1,0 +1,11 @@
+Fix for AttributeError: GantryRobot has no attribute localization_records
+
+Extract this ZIP over the root of your Integrated-OpenCV-Farming-Agent project.
+It replaces pybullet_sim/gantry_robot.py with the same patched file plus the
+missing initialization of localization_records and the optional on_localization
+callback in GantryRobot.__init__.
+
+Then run:
+  python3 -m py_compile pybullet_sim/gantry_robot.py
+  python3 dev/integration_smoke.py
+  python3 app_ui.py

@@ -7,6 +7,7 @@ sys.path.insert(0, ROOT)
 
 from pod_registry import PODS
 from pybullet_sim.bridge import PyBulletBridge
+from pybullet_sim.multiview_localization import camera_intrinsics, estimate_pod_pose
 
 
 def main():
@@ -26,8 +27,13 @@ def main():
     assert bridge._step_tickets == 1
     bridge.resume()
     assert not bridge._paused and bridge._step_tickets == 0
+    intrinsics = camera_intrinsics()
+    assert len(intrinsics) == 3 and intrinsics[0][0] > 0 and intrinsics[1][1] > 0
+    empty_pose = estimate_pod_pose([], "test-pod", 1, "front", (0.22, 0.08, 0.045))
+    assert not empty_pose["valid"] and empty_pose["center_world"] is None
     print("PASS: 72/72 unique pod mappings")
     print("PASS: shared pause / step / resume controller state")
+    print("PASS: multi-view calibration metadata and invalid-pose safety gate")
     ok, reason = bridge.dependency_available()
     print("PyBullet runtime:", "available" if ok else f"not available ({reason})")
     if not ok:

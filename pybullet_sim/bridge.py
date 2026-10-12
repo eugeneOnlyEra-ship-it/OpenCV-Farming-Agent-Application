@@ -6,6 +6,9 @@ orders into physical gantry movements. All PyBullet calls stay on one thread.
 """
 from __future__ import annotations
 
+import copy
+import json
+import os
 import queue
 import threading
 import time
@@ -41,6 +44,19 @@ class PyBulletBridge:
             (p["row"], p["col"], p["layer"], p["side"]): p
             for p in self._sim_pods
         }
+        self._localization_lock = threading.RLock()
+        self._localization_by_app_pod = {}
+        self._app_id_by_sim_id = {}
+        try:
+            from pod_registry import PODS as app_pods
+            for app_pod in app_pods:
+                sim_pod = self._map_pod(app_pod)
+                if sim_pod:
+                    self._app_id_by_sim_id[sim_pod["pod_id"]] = app_pod["pod_id"]
+        except Exception:
+            pass
+        self._localization_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                               "logs", "pod_localization_latest.json")
 
     @staticmethod
     def dependency_available():
@@ -53,6 +69,37 @@ class PyBulletBridge:
 
     def attach_orders(self, order_book):
         self._orders = order_book
+
+    def get_localization(self, app_pod_id):
+        """Return the latest camera-derived pose for an application pod."""
+        with self._localization_lock:
+            record = self._localization_by_app_pod.get(app_pod_id)
+            return dict(record) if record else None
+
+    def _on_localization(self, record):
+        sim_pod_id = record.get("pod_id")
+        app_pod_id = self._app_id_by_sim_id.get(sim_pod_id, sim_pod_id)
+        stored = dict(record)
+        stored["sim_pod_id"] = sim_pod_id
+        stored["pod_id"] = app_pod_id
+        with self._localization_lock:
+            self._localization_by_app_pod[app_pod_id] = stored
+            try:
+                os.makedirs(os.path.dirname(self._localization_path), exist_ok=True)
+                temporary = self._localization_path + ".tmp"
+                with open(temporary, "w", encoding="utf-8") as handle:
+                    json.dump({"updated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                               "pod_count": len(self._localization_by_app_pod),
+                               "poses": self._localization_by_app_pod}, handle, indent=2)
+                os.replace(temporary, self._localization_path)
+            except OSError as exc:
+                self.on_log(f"Could not persist pod localization: {exc}", "warn")
+        if stored.get("valid"):
+            self.on_log(f"Localized {app_pod_id}: center={stored.get('center_world')} "
+                        f"yaw={stored.get('orientation_yaw_deg', 0):.1f}° "
+                        f"from {stored.get('contributing_view_count', 0)} views", "ok")
+        else:
+            self.on_log(f"Pod localization uncertain for {app_pod_id}; worker engagement withheld", "warn")
 
     def wrap_transport(self, existing_transport):
         bridge = self
@@ -217,6 +264,7 @@ class PyBulletBridge:
             from .gantry_robot import GantryRobot
             from .pod_registry import TOP_DOCK_Y, BOTTOM_DOCK_Y
             robot = GantryRobot(pods=self._sim_pods, gui=self.gui, speed_scale=self.speed)
+            robot.on_localization = self._on_localization
             self._robot = robot
             robot.park_at_dock(TOP_DOCK_Y)
             self._ready.set()
@@ -279,6 +327,9 @@ class PyBulletBridge:
             self._orders.cancel_dispatched(job["order"].get("order_id"), note)
 
     def _execute_visit(self, robot, sim_pod, decision, service_action):
+        # Each visit receives a private pod record: estimated pose corrections must
+        # not mutate the registry used by later jobs or the rendered farm geometry.
+        sim_pod = copy.deepcopy(sim_pod)
         action = (decision or {}).get("action")
         decision_map = {
             "log_healthy": "log_and_continue",
@@ -319,6 +370,11 @@ class PyBulletBridge:
         self._execute_visit(robot, job["pod"], {"action": "flag_for_treatment" if task == "TREAT" else
                                                   "flag_for_harvest" if task == "HARVEST" else
                                                   "schedule_frequent_monitoring"}, service_action)
+        pose = self.get_localization(order.get("pod_id"))
+        if service_action is not None and (not pose or not pose.get("valid")):
+            book.fail(order_id, note="worker action withheld because multi-view pod localization was not reliable")
+            self.on_log(f"Withheld {task} for {order.get('pod_id')}: localization did not meet confidence checks", "warn")
+            return
         for _ in range(n_steps):
             book.advance(order_id)
         book.complete(order_id, note="executed by PyBullet gantry simulation")

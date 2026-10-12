@@ -1,18 +1,18 @@
 {
  "R1-L-F1": {
-  "age": 9,
+  "age": 8,
   "cycles": 0
  },
  "R1-L-F2": {
-  "age": 18,
-  "cycles": 0
+  "age": 3,
+  "cycles": 1
  },
  "R1-L-F3": {
-  "age": 5,
+  "age": 3,
   "cycles": 1
  },
  "R1-L-F4": {
-  "age": 11,
+  "age": 9,
   "cycles": 0
  },
  "R1-M-F1": {
@@ -29,10 +29,6 @@
  },
  "R1-M-F4": {
   "age": 7,
-  "cycles": 0
- },
- "R1-R-F1": {
-  "age": 1,
   "cycles": 0
  }
 }

@@ -44,8 +44,8 @@ VOCABULARY AND COORDINATES  (metres, world frame, z up)
                       its centre exactly over the pole (x = c*0.75, y = r*1.32).
      pod / trough     an elongated box (0.44 m long along x) sticking out of a pole;
                       its aisle-facing wall is the "face" (0.24 m from the pole's axis).
-     plant            PLANTS_PER_POD (3) plants set in ports in that wall, at
-                      x = pole_x + PLANT_X_OFFSETS_M (-0.11, 0, +0.11).
+     plant            PLANTS_PER_POD (3) plants growing vertically from the
+                      TOP of each trough, at x = pole_x + PLANT_X_OFFSETS_M.
      rail             the overhead lattice the machine rides ON. Horizontal rails:
                       1 (top dock), 2, 3, 4 (the three rows), "end" (bottom dock).
                       Vertical rails: only the two OUTER ones, at x = 0 and x = 1.5.
@@ -309,7 +309,9 @@ APPLICATOR_ROD_BACK_M = 0.093       # rod's back end behind the tube end (stays 
 APPLICATOR_PAD_RADIUS_M = 0.02
 APPLICATOR_RETRACTED_TIP_M = SERVICE_NOZZLE_TUBE_END_M + APPLICATOR_PAD_FRONT_M   # 0.080 from the tank centre
 FACE_OFFSET_M = SIDE_OFFSET_M + TROUGH_HALF_EXTENTS_M[1]   # pole axis -> trough outer face = 0.24
-PLANT_FRONT_OFFSET_M = FACE_OFFSET_M + PLANT_PROTRUSION_M   # pole axis -> the front of a plant = 0.275
+# Plants now grow from the trough top. Workers approach their lower foliage/stem
+# from the aisle side; the contact surface is the plant's lateral radius from its centre.
+PLANT_FRONT_OFFSET_M = SIDE_OFFSET_M + PLANT_HALF_SIZE_M
 # How the touch works: the applicator (a rod + gold pad) slides out of the nozzle tube along Y
 # by APPLICATOR_STROKE_M, until the pad is ~2 mm from the FRONT of a plant. It stops short by
 # design -- PyBullet joints settle about 1 mm short of a target, and the verifier requires the
@@ -607,6 +609,10 @@ class GantryRobot:
         self.pod_marker_ids = {}
         self.service_markers = {}      # pod_id -> body id of the "serviced" tag
         self.service_marker_bounds = {}  # pod_id -> (min, max) AABB, for verify_motion.py
+        # Multi-view localization results are keyed by pod ID. Callback is optional
+        # so the simulator can be used by both the GUI and headless checks.
+        self.localization_records = {}
+        self.on_localization = None
         # every static thing the machine must stay clear of, recorded as it is
         # built: (name, (xmin,ymin,zmin), (xmax,ymax,zmax)). Used by
         # verify_motion.py; cylinders are recorded as their bounding box.
@@ -792,51 +798,52 @@ class GantryRobot:
             )
 
     def _add_plants(self, pod):
-        """The row of plants across one trough: a planting-port ring in the
-        aisle-facing wall and a little crop-specific tuft growing out of each.
-        ONE plain body per pod carrying a compound visual (one coloured shape per
-        part) -- not a multi-link body: PyBullet steps every link of every body on
-        every physics step, and 18 static links per pod made each step ~4x slower.
-        Each plant's bounding box is recorded as an obstacle: the camera must stay
-        clear of it, and only the service agent's applicator pad may touch it."""
+        """Build vertically growing plants on the TOP surface of each trough.
+
+        Each crop uses a small compound visual per pod, keeping the scene cheap to
+        step. Plant centres are above the trough top; leaves spread in X/Y and stems
+        rise along +Z. The service agent still approaches from the aisle side and
+        touches the lower stem/foliage at plant["z"].
+        """
         pos = pod["position_m"]
-        out = 1 if pod["side"] == "front" else -1          # +Y for the front face, -Y for the back
-        wall = out * TROUGH_HALF_EXTENTS_M[1]              # wall's y relative to the pod centre
         crop = pod["crop_type"]
-        to_y = p.getQuaternionFromEuler([math.pi / 2, 0, 0])   # cylinder axis Z -> Y
+        top_z = TROUGH_HALF_EXTENTS_M[2]
         no_rot = (0, 0, 0, 1)
-        parts = []   # (shape type, radius, length, position relative to the pod centre, orientation, rgba)
+        parts = []  # (shape type, radius, length, local position, orientation, rgba)
 
         def cyl(r, length, x, y, z, rgba):
-            """Add a cylinder lying along Y (pointing out of the wall) at (x, y, z) relative to the pod centre."""
-            parts.append((p.GEOM_CYLINDER, r, length, (x, y, z), to_y, rgba))
+            # Default PyBullet cylinder axis is world/local Z: vertical stem.
+            parts.append((p.GEOM_CYLINDER, r, length, (x, y, z), no_rot, rgba))
 
         def ball(r, x, y, z, rgba):
-            """Add a sphere of radius r at (x, y, z) relative to the pod centre."""
             parts.append((p.GEOM_SPHERE, r, 0.0, (x, y, z), no_rot, rgba))
 
         for plant in pod["plants"]:
             x = plant["x"] - pos["x"]
-            cyl(0.04, 0.008, x, wall + out * 0.004, 0, (0.18, 0.18, 0.20, 1.0))        # port ring
+            base_z = top_z + 0.008
             if crop == "cabbage":
-                ball(0.034, x, wall + out * 0.001, 0, (0.28, 0.52, 0.36, 1.0))
-                ball(0.022, x, wall + out * 0.013, 0, (0.55, 0.76, 0.56, 1.0))
+                cyl(0.007, 0.075, x, 0.0, base_z + 0.0375, (0.24, 0.43, 0.28, 1.0))
+                ball(0.030, x, 0.0, base_z + 0.065, (0.28, 0.52, 0.36, 1.0))
+                ball(0.023, x - 0.018, -0.014, base_z + 0.045, (0.42, 0.66, 0.42, 1.0))
+                ball(0.023, x + 0.018, 0.014, base_z + 0.045, (0.55, 0.76, 0.56, 1.0))
             elif crop == "lettuce":
-                ball(0.027, x, wall + out * 0.008, 0, (0.55, 0.80, 0.30, 1.0))
-                for dx, dz in ((-0.018, -0.014), (0.018, -0.014), (0.0, 0.018)):
-                    ball(0.017, x + dx, wall + out * 0.006, dz, (0.42, 0.70, 0.24, 1.0))
-            else:                                                                       # mushroom
-                cyl(0.008, 0.022, x, wall + out * 0.011, 0, (0.92, 0.90, 0.82, 1.0))
-                ball(0.026, x, wall + out * 0.009, 0, (0.62, 0.48, 0.36, 1.0))
+                cyl(0.006, 0.055, x, 0.0, base_z + 0.0275, (0.25, 0.48, 0.20, 1.0))
+                ball(0.024, x - 0.018, 0.0, base_z + 0.035, (0.55, 0.80, 0.30, 1.0))
+                ball(0.024, x + 0.018, -0.012, base_z + 0.040, (0.42, 0.70, 0.24, 1.0))
+                ball(0.024, x, 0.016, base_z + 0.045, (0.62, 0.82, 0.34, 1.0))
+            else:  # mushroom: upright stem and cap above the trough opening
+                cyl(0.008, 0.040, x, 0.0, base_z + 0.020, (0.92, 0.90, 0.82, 1.0))
+                ball(0.026, x, 0.0, base_z + 0.048, (0.62, 0.48, 0.36, 1.0))
 
-            lo, hi = sorted((plant["y_wall"], plant["y_front"]))
             h = PLANT_HALF_SIZE_M
+            lo_y, hi_y = plant["y_wall"] - h, plant["y_wall"] + h
             self.obstacles.append((
                 f"plant {pod['pod_id']}:{plant['index']}",
-                (plant["x"] - h, lo, pos["z"] - h), (plant["x"] + h, hi, pos["z"] + h)))
+                (plant["x"] - h, lo_y, pos["z"] + top_z),
+                (plant["x"] + h, hi_y, pos["z"] + top_z + 0.105),
+            ))
 
         n = len(parts)
-        # PyBullet segfaults above 16 shapes in one compound visual -- keep each crop's plant simple enough
         assert n <= MAX_SHAPES_PER_COMPOUND, f"{n} shapes in one compound visual (max {MAX_SHAPES_PER_COMPOUND})"
         vis = p.createVisualShapeArray(
             shapeTypes=[q[0] for q in parts], radii=[q[1] for q in parts], lengths=[q[2] for q in parts],
@@ -1397,14 +1404,85 @@ class GantryRobot:
         it centres its head and stows."""
         # (1) descend to the first (top) pod. Nothing else is deployed yet.
         cam = self.agent(side, "camera")
-        yield from self._g_settle({cam.joint: hoist_extension_for(pods[0]["position_m"]["z"])})
+        first = pods[0]
+        camera_scan_height = first["position_m"]["z"] + TROUGH_HALF_EXTENTS_M[2] + 0.22
+        yield from self._g_settle({cam.joint: hoist_extension_for(camera_scan_height)})
         direction = 1        # the camera hangs at x-0.11: plant 0 (the -x one) is the nearest
         for i, pod in enumerate(pods):
-            for k in self._plant_order(PLANTS_PER_POD, direction):
+            from .multiview_localization import estimate_pod_pose
+            import pybullet as p
+            import numpy as np
+            views = []
+            for view_index, k in enumerate(self._plant_order(PLANTS_PER_POD, direction)):
                 yield from self._g_settle(self.stage_cmd(cam, self.stage_target_for_plant(cam, pod, k)))
-                self._emit("plant_scan", pod, agent=cam, plant=k)
+                # The same physical camera agent captures from its three X positions
+                # along the pod. Intrinsics are fixed; each view records the actual
+                # simulated camera position and its own view/projection matrices.
+                eye = list(self.agent_head_position(cam))
+                # Aim at the trough top near the currently scanned plant. The camera
+                # head is raised above the top surface, so the renderer sees the top
+                # openings and the upright plants rather than only the aisle-facing wall.
+                target = [float(pod["position_m"]["x"]),
+                          float(pod["position_m"]["y"]),
+                          float(pod["position_m"]["z"] + TROUGH_HALF_EXTENTS_M[2])]
+                view_matrix = p.computeViewMatrix(eye, target, [0, 0, 1])
+                from .multiview_localization import (IMAGE_WIDTH, IMAGE_HEIGHT,
+                    CAMERA_FOV_DEG, CAMERA_NEAR, CAMERA_FAR)
+                projection_matrix = p.computeProjectionMatrixFOV(
+                    fov=CAMERA_FOV_DEG, aspect=IMAGE_WIDTH / IMAGE_HEIGHT,
+                    nearVal=CAMERA_NEAR, farVal=CAMERA_FAR)
+                image = p.getCameraImage(
+                    IMAGE_WIDTH, IMAGE_HEIGHT, viewMatrix=view_matrix,
+                    projectionMatrix=projection_matrix,
+                    renderer=p.ER_TINY_RENDERER,
+                    flags=p.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
+                    physicsClientId=self.client)
+                views.append({
+                    "view_index": view_index,
+                    "camera_position_world": eye,
+                    "view_matrix": view_matrix,
+                    "projection_matrix": projection_matrix,
+                    "rgba": np.asarray(image[2], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH, 4),
+                    "depth": np.asarray(image[3], dtype=np.float64).reshape(IMAGE_HEIGHT, IMAGE_WIDTH),
+                    "segmentation": np.asarray(image[4], dtype=np.int64).reshape(IMAGE_HEIGHT, IMAGE_WIDTH),
+                })
+                self._emit("plant_scan", pod, agent=cam, plant=k,
+                           localization_view=view_index + 1)
                 yield from self._g_wait(CAMERA_PLANT_SECONDS)
             direction = -direction
+
+            # Estimate the pod's 3D pose before releasing the service agent. The
+            # segmentation mask is simulator-only ground-truth masking; RGB/depth
+            # and per-view calibration are retained for later OpenCV detector work.
+            pose = estimate_pod_pose(
+                views, pod["pod_id"], self.pod_marker_ids[pod["pod_id"]],
+                pod["side"], TROUGH_HALF_EXTENTS_M)
+            self.localization_records[pod["pod_id"]] = pose
+            shared.setdefault("localization", {})[pod["pod_id"]] = pose
+            if self.on_localization is not None:
+                self.on_localization(dict(pose))
+            self._emit("pod_localized", pod, agent=cam, valid=pose["valid"],
+                       point_count=pose["point_count"], view_count=pose["view_count"],
+                       yaw_deg=pose["orientation_yaw_deg"])
+            if pose["valid"] and pose["center_world"] is not None:
+                # Use the vision-derived centre for the worker's target. Translate
+                # plant target coordinates by the same measured centre correction.
+                old = pod["position_m"]
+                new = pose["center_world"]
+                delta = {"x": new[0] - old["x"], "y": new[1] - old["y"],
+                         "z": new[2] - old["z"]}
+                pod["position_m"] = {"x": new[0], "y": new[1], "z": new[2]}
+                for plant in pod.get("plants", []):
+                    if "x" in plant:
+                        plant["x"] += delta["x"]
+                    if "z" in plant:
+                        plant["z"] += delta["z"]
+                    if "y" in plant:
+                        plant["y"] += delta["y"]
+                    if "y_wall" in plant:
+                        plant["y_wall"] += delta["y"]
+                    if "y_front" in plant:
+                        plant["y_front"] += delta["y"]
 
             # (3) every plant imaged -> assess the pod. assess() is main.py's callback: it runs the
             #     classifier + decision agent, logs, recolours the trough, and returns the service plan.
@@ -1415,7 +1493,9 @@ class GantryRobot:
 
         # (4) move on. Only AFTER this move is "camera_left" published, which releases the service agent.
             if i + 1 < len(pods):
-                yield from self._g_settle({cam.joint: hoist_extension_for(pods[i + 1]["position_m"]["z"])})
+                next_pod = pods[i + 1]
+                next_camera_z = next_pod["position_m"]["z"] + TROUGH_HALF_EXTENTS_M[2] + 0.22
+                yield from self._g_settle({cam.joint: hoist_extension_for(next_camera_z)})
             else:                                  # last pod: centre the head, then get out of the way
                 yield from self._g_settle(self.stage_cmd(cam, 0.0))
                 yield from self._g_settle({cam.joint: 0.0})
@@ -1438,10 +1518,19 @@ class GantryRobot:
             if not action:
                 self._emit("service_skip", pod, agent=svc)
                 continue
-            yield from self._g_settle({svc.joint: hoist_extension_for(pod["position_m"]["z"])})
+            pose = shared.get("localization", {}).get(pod["pod_id"])
+            if not pose or not pose.get("valid"):
+                self._emit("service_skip", pod, agent=svc,
+                           reason="pod localization confidence insufficient")
+                continue
+            service_z = float(pod["plants"][0].get("z", pod["position_m"]["z"]))
+            yield from self._g_settle({svc.joint: hoist_extension_for(service_z)})
             # current_service / current_plant tell verify_motion.py which ONE plant the pad is
             # allowed to touch right now; every other contact is a violation.
-            self._emit("service_start", pod, agent=svc, action=action)
+            self._emit("service_start", pod, agent=svc, action=action,
+                       target_center_world=pose.get("center_world"),
+                       target_yaw_deg=pose.get("orientation_yaw_deg"),
+                       pose_confidence=pose.get("confidence_score"))
             self.current_service[svc.key] = pod["pod_id"]
             for k in self._plant_order(PLANTS_PER_POD, direction):
                 yield from self._g_settle(self.stage_cmd(svc, self.stage_target_for_plant(svc, pod, k)))

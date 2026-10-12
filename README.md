@@ -2,6 +2,31 @@
 
 This folder combines the OpenCV/ONNX farming application with the PyBullet gantry robot simulation. **Run the integrated application with `python3 app_ui.py`.** The `PyBullet robots` checkbox in the toolbar enables/disables the physical simulation layer.
 
+## Multi-view pod localization (single camera agent)
+
+The PyBullet camera agent now captures three calibrated RGB-D views while it
+sweeps across a pod's three plant positions. Each view records the camera head's
+actual simulated world position, its view/projection matrices, depth buffer, and
+pod segmentation mask. `pybullet_sim/multiview_localization.py` unprojects the
+masked depth pixels into the world frame and estimates the pod center and
+long-axis yaw. The result is stored in `logs/pod_localization_latest.json` and
+emitted as a `pod_localized` simulation event.
+
+Before a service agent engages, it checks that the pod pose passed the minimum
+point-count, multi-view, and orientation-alignment checks. A valid center estimate
+is applied to a private copy of the pod and its plant target coordinates; invalid
+localization withholds service, and work orders are marked failed rather than
+reported as completed. The camera's image capture remains part of the existing
+pause/resume/step/stop-controlled PyBullet job.
+
+**Simulation limitation:** this first localization pass uses PyBullet's object
+segmentation mask to isolate the target trough, and known simulated camera
+intrinsics/extrinsics. It validates multi-view depth reconstruction and worker
+coordination, but it is not yet a camera-only OpenCV detector and is not a physical
+checkerboard calibration workflow. A real deployment would replace the simulator
+mask with an OpenCV detector or fiducial/feature detector and calibrate the physical
+camera. The current gantry service axes also cannot compensate for a genuinely
+rotated pod; large estimated yaw is rejected rather than acted on.
 ## What is integrated
 
 - The application remains the source of truth for image classification, decisions, crop history, logs, work-order approval, and follow-up scans.

@@ -69,7 +69,7 @@ THE POD DICT  (one per trough; PODS is the list of all 72)
     crop_type     "cabbage" | "lettuce" | "mushroom"   (cycles through pods)
     position_m    {"x","y","z"} the trough CENTRE  (y = row_y +/- SIDE_OFFSET_M)
     plants        PLANTS_PER_POD dicts {"index","x","z","y_wall","y_front"}: each plant's
-                  x/z, the y of the trough wall it grows from, and the y of its front tip
+                  x/z, centreline y, and aisle-facing side surface y for service alignment
     ground_truth  {"growth_stage": str, "diseased": bool}  what is REALLY in the pod (only the
                   stub classifier and the log's agreement column use it)
     image_path    the stand-in "camera frame" for this pod (see generate_placeholder_images.py)
@@ -119,14 +119,12 @@ ROW_SPACING_M = AISLE_CLEAR_WIDTH_M + 2 * SIDE_OFFSET_M  # pole-centerline-to-po
 TROUGH_HALF_EXTENTS_M = (0.22, 0.08, 0.045)  # (x, y, z) -- long + shallow + thin, per the SVG shape
 
 # --- several plants across each pod ---
-# Each elongated trough carries a row of plants along its length, set in planting
-# ports in its aisle-facing wall (the wall the agents work from), so the camera
-# and service agents have to address them one after another. A plant sticks out
-# PLANT_PROTRUSION_M beyond the wall; its bounding box is a cube of side
-# 2 * PLANT_HALF_SIZE_M. Offsets are along X from the trough's centre.
+# Plants grow vertically through openings in the TOP of each trough. The three
+# plant positions are spaced along X. PLANT_HALF_SIZE_M is the approximate
+# lateral radius used for the leaves and for side-access service alignment.
 PLANT_X_OFFSETS_M = (-0.11, 0.0, 0.11)
 PLANTS_PER_POD = len(PLANT_X_OFFSETS_M)
-PLANT_PROTRUSION_M = 0.035
+PLANT_PROTRUSION_M = 0.035  # retained for compatibility with older configs
 PLANT_HALF_SIZE_M = 0.035
 
 # --- dock rails (added per the station/pole sketch) ---
@@ -251,10 +249,10 @@ def build_pod_registry():
                     ).replace(" ", "_")
 
                     out = 1 if side == "front" else -1        # +Y for the front face, -Y for the back
-                    wall_y = side_y + out * TROUGH_HALF_EXTENTS_M[1]
+                    plant_contact_z = layer_z + TROUGH_HALF_EXTENTS_M[2] + PLANT_HALF_SIZE_M
                     plants = [
-                        {"index": k, "x": station_x + dx, "z": layer_z,
-                         "y_wall": wall_y, "y_front": wall_y + out * PLANT_PROTRUSION_M}
+                        {"index": k, "x": station_x + dx, "z": plant_contact_z,
+                         "y_wall": side_y, "y_front": side_y + out * PLANT_HALF_SIZE_M}
                         for k, dx in enumerate(PLANT_X_OFFSETS_M)
                     ]
 
