@@ -142,6 +142,7 @@ CHANGING THINGS
 """
 
 import math
+import cv2
 import os
 import time
 
@@ -1589,48 +1590,99 @@ class GantryRobot:
             capture_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs", "multiview")
             os.makedirs(capture_dir, exist_ok=True)
             image_paths = []
+            saved_bgr_frames = []
             view_model_scores = []
             try:
                 from perception import classify_pod
             except Exception:
                 classify_pod = None
+            infer_items = []                 # (position in view_model_scores, view_index, bgr) to score off-thread
+            view_model_scores = []
             for view in views:
                 rgba = view.get("rgba")
                 if rgba is None:
                     view_model_scores.append({"error": "camera frame missing"})
                     continue
+                visit_tag = int(result.get("visit_num", 1) or 1)
                 path = os.path.join(capture_dir,
-                    f"{pod['pod_id']}_view{int(view['view_index']) + 1}.png")
+                    f"{pod['pod_id']}_visit{visit_tag}_view{int(view['view_index']) + 1}.png")
                 bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
                 cv2.imwrite(path, bgr)
                 image_paths.append(path)
+                saved_bgr_frames.append(bgr.copy())
                 if classify_pod is None:
                     view_model_scores.append({"error": "OpenCV perception import unavailable"})
                     continue
+                view_model_scores.append(None)          # filled in below, once the worker thread has the scores
+                infer_items.append((len(view_model_scores) - 1, int(view["view_index"]), bgr))
+            if infer_items:
+                # Six ONNX inferences (3 views x growth+disease) take seconds. They used to run right here, inside
+                # one generator turn, which froze the physics loop (BOTH sides' agents stopped moving) and starved
+                # the UI. Now a single worker thread does them while this task simply yields: the physics keeps
+                # stepping, the other side's agents keep working, and the models load once in that thread.
+                future = self._inference_pool().submit(self._score_rendered_views, classify_pod, pod, infer_items)
+                while not future.done():
+                    time.sleep(0.002)
+                    yield
+                for position, entry in future.result().items():
+                    view_model_scores[position] = entry
+            # The two camera agents capture independently but are scheduled in the
+            # same station visit. Once both sides have their three frames, create a
+            # labelled 2x3 contact sheet (front row, back row) for visual calibration.
+            shared.setdefault("multiview_frames", {})[side] = {
+                "pod": pod, "frames": saved_bgr_frames, "directory": capture_dir,
+            }
+            other_side = "back" if side == "front" else "front"
+            other_capture = shared["multiview_frames"].get(other_side)
+            if (len(saved_bgr_frames) >= 3 and other_capture and len(other_capture.get("frames", [])) >= 3
+                    and other_capture["pod"].get("layer") == pod.get("layer")
+                    and other_capture["pod"].get("row") == pod.get("row")
+                    and other_capture["pod"].get("col") == pod.get("col")):
                 try:
-                    rendered_result = classify_pod(pod["pod_id"], pod["crop_type"], bgr)
-                    view_model_scores.append({
-                        "view_index": int(view["view_index"]),
-                        "growth_stage": rendered_result.get("growth_stage"),
-                        "growth_confidence": float(rendered_result.get("growth_confidence", 0.0)),
-                        "disease_flag": bool(rendered_result.get("disease_flag", False)),
-                        "disease_name": rendered_result.get("disease_name"),
-                        "disease_confidence": float(rendered_result.get("disease_confidence", 0.0)),
-                        "growth_detection_count": len(rendered_result.get("growth_detections", [])),
-                        "disease_detection_count": len(rendered_result.get("disease_detections", [])),
-                    })
+                    tile_w, tile_h = 360, 240
+                    sheet = np.zeros((tile_h * 2, tile_w * 3, 3), dtype=np.uint8)
+                    for row_idx, side_name in enumerate(("front", "back")):
+                        capture = shared["multiview_frames"].get(side_name)
+                        if not capture:
+                            continue
+                        for col_idx, frame in enumerate(capture["frames"][:3]):
+                            tile = cv2.resize(frame, (tile_w, tile_h))
+                            cv2.putText(tile, f"{side_name.upper()} view {col_idx + 1}",
+                                        (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.65,
+                                        (0, 255, 255), 2, cv2.LINE_AA)
+                            sheet[row_idx * tile_h:(row_idx + 1) * tile_h,
+                                  col_idx * tile_w:(col_idx + 1) * tile_w] = tile
+                    row_id = int(pod["row"])
+                    col_id = int(pod["col"])
+                    layer_id = int(pod["layer"])
+                    visit_tag = int(result.get("visit_num", 1) or 1)
+                    contact_path = os.path.join(capture_dir,
+                        f"R{row_id}C{col_id}_L{layer_id}_visit{visit_tag}_six_view_calibration.png")
+                    cv2.imwrite(contact_path, sheet)
+                    shared["six_view_contact_path"] = contact_path
+                    # Add the contact-sheet path to both localization records when present.
+                    for capture in shared["multiview_frames"].values():
+                        capture_pod_id = capture.get("pod", {}).get("pod_id")
+                        if capture_pod_id in self.localization_records:
+                            self.localization_records[capture_pod_id]["six_view_contact_sheet"] = contact_path
+                    # Save the six-view contact sheet without opening an extra OpenCV window.
+                    self._emit("multiview_contact_sheet", pod, agent=f"camera_{side}",
+                               path=contact_path, views_per_side=3, total_views=6)
                 except Exception as exc:
-                    # A missing model or poor synthetic frame must not crash robot
-                    # calibration; the reason is preserved in the pose record.
-                    view_model_scores.append({"view_index": int(view["view_index"]),
-                                              "error": repr(exc)})
+                    self._emit("multiview_contact_sheet_failed", pod, agent=f"camera_{side}",
+                               error=repr(exc))
+
             pose = estimate_pod_pose(
                 views, pod["pod_id"], self.pod_marker_ids[pod["pod_id"]],
                 pod["side"], TROUGH_HALF_EXTENTS_M)
             pose["model_scores"] = result.get("model_scores") or result.get("classification") or {}
             pose["decision"] = result.get("decision") or {}
+            pose["application_pod_id"] = result.get("application_pod_id", pod["pod_id"])
+            pose["visit_num"] = int(result.get("visit_num", 1) or 1)
             pose["camera_view_model_scores"] = view_model_scores
             pose["captured_image_paths"] = image_paths
+            if shared.get("six_view_contact_path"):
+                pose["six_view_contact_sheet"] = shared["six_view_contact_path"]
             self.localization_records[pod["pod_id"]] = pose
             shared.setdefault("localization", {})[pod["pod_id"]] = pose
             if self.on_localization is not None:
@@ -1765,7 +1817,7 @@ class GantryRobot:
         steps = self.go_to_station(station["row"], station["col"], step_sleep)
         assert self.boxes_engaged(), "agents can only work with the drive boxes engaged"
         self._emit("station_start", row=station["row"], col=station["col"])
-        shared = {"assessed": {}, "camera_left": {"front": 0, "back": 0}}
+        shared = {"assessed": {}, "camera_left": {"front": 0, "back": 0}, "multiview_frames": {}}
         tasks = []
         for side in ("front", "back"):
             pods = station[side]
@@ -1775,6 +1827,102 @@ class GantryRobot:
         steps += self._run(tasks, step_sleep)
         self._emit("station_done", row=station["row"], col=station["col"])
         return steps
+
+    # ------------------------------------------------------------------ live station session
+    def _inference_pool(self):
+        """One dedicated thread for the ONNX scoring of rendered views (models load once, in that thread)."""
+        pool = getattr(self, "_infer_pool", None)
+        if pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            pool = self._infer_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sim-infer")
+        return pool
+
+    def prewarm_inference(self):
+        """Load the six ONNX models in the inference thread NOW (non-blocking), so the first camera visit does not
+        pay a multi-second model load."""
+        def warm():
+            try:
+                import perception
+                perception.warm_up()
+            except Exception:
+                pass
+        self._inference_pool().submit(warm)
+
+    @staticmethod
+    def _score_rendered_views(classify_pod, pod, items):
+        """Runs on the inference thread. items = [(position, view_index, bgr)] -> {position: score dict}."""
+        out = {}
+        for position, view_index, bgr in items:
+            try:
+                r = classify_pod(pod["pod_id"], pod["crop_type"], bgr)
+                out[position] = {
+                    "view_index": view_index,
+                    "growth_stage": r.get("growth_stage"),
+                    "growth_confidence": float(r.get("growth_confidence", 0.0)),
+                    "disease_flag": bool(r.get("disease_flag", False)),
+                    "disease_name": r.get("disease_name"),
+                    "disease_confidence": float(r.get("disease_confidence", 0.0)),
+                    "growth_detection_count": len(r.get("growth_detections", [])),
+                    "disease_detection_count": len(r.get("disease_detections", [])),
+                }
+            except Exception as exc:
+                # A missing model or poor synthetic frame must not crash robot calibration.
+                out[position] = {"view_index": view_index, "error": repr(exc)}
+        return out
+
+    def service_station_live(self, row, col, assess, poll, step_sleep=0.0, max_wall_seconds=900.0):
+        """Like service_station(), but the work list is not fixed in advance.
+
+        service_station() takes every pod up front, so a job that arrives a moment later has to wait for the whole
+        station to finish (or, in the bridge, for a "partner" job that may never come). Here `poll(idle_sides)` is
+        called every physics step while any side is idle; it returns {side: [pods]} to start right now. A side whose
+        camera+service tasks have finished (and stowed) can therefore start new work while the OTHER side is still
+        busy: front and back agents progress independently and simultaneously at this station, and nobody ever
+        waits for a partner. The session ends as soon as both sides are idle and poll() has nothing more.
+
+        max_wall_seconds guards against a stuck scheduler (raises TimeoutError so the caller can fail the jobs
+        instead of leaving the application waiting forever). Returns physics steps taken."""
+        steps = self.go_to_station(row, col, step_sleep)
+        assert self.boxes_engaged(), "agents can only work with the drive boxes engaged"
+        self._emit("station_start", row=row, col=col)
+        shared = {"assessed": {}, "camera_left": {"front": 0, "back": 0}, "multiview_frames": {}}
+        live = {"front": [], "back": []}
+        wall_start, since_start = time.monotonic(), 0
+        while True:
+            idle = tuple(side for side in ("front", "back") if not live[side])
+            if idle:
+                for side, pods in (poll(idle) or {}).items():
+                    if side in idle and pods:
+                        shared["camera_left"][side] = 0          # fresh counter for this side's new task pair
+                        live[side] = [self._g_camera(side, pods, assess, shared),
+                                      self._g_service(side, pods, shared)]
+                        since_start = 0
+            if not any(live.values()):
+                break
+            for side in ("front", "back"):
+                for task in list(live[side]):
+                    try:
+                        next(task)
+                    except StopIteration:
+                        live[side].remove(task)
+            self._step(step_sleep)
+            steps += 1
+            since_start += 1
+            if since_start > MAX_RUN_STEPS:
+                raise RuntimeError(f"station task exceeded {MAX_RUN_STEPS} physics steps")
+            if time.monotonic() - wall_start > max_wall_seconds:
+                raise TimeoutError(f"station session exceeded {max_wall_seconds:.0f} s of wall-clock time")
+        self._emit("station_done", row=row, col=col)
+        return steps
+
+    def recover_after_failure(self, step_sleep=0.0):
+        """Best effort after an exception inside a station session: stow whatever is deployed so the next session
+        can start. Returns True if the machine is stowed again."""
+        try:
+            self._stow_all(step_sleep)
+            return True
+        except Exception:
+            return False
 
     def park_at_dock(self, dock_y, step_sleep=0.0):
         """Stow every hoist, slide the drive boxes in (disengage) and drive
@@ -1791,4 +1939,7 @@ class GantryRobot:
 
     def disconnect(self):
         """Close the PyBullet connection. Call once when done (main.py does, in a finally)."""
+        pool = getattr(self, "_infer_pool", None)
+        if pool is not None:
+            pool.shutdown(wait=False)
         p.disconnect(self.client)

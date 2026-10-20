@@ -651,7 +651,8 @@ Treat growth as N/A for back pods (§16.2) · reload orders across runs · real-
 7. **Live fleet strip** in the main window; setup controls moved to the sidebar; short summary chips.
 8. **Worker progress inside the score panels**; lanes wait for robots; **REPLANT** after harvest.
 9. **Crop life cycles** (`crop_cycle.py`): ordered lingering stages, staggering, harvest-wait, persistence; header row for location/crop age. *(Its first version also edited `perception.py` — reverted, §17.)*
-10. **This handoff, `dev/` tools, `orders_dir` option, mushroom finding corrected (label correction instead of a perception edit).**
+10. **Freeze fix + live front/back scheduling for the PyBullet bridge** (§21).
+11. **This handoff, `dev/` tools, `orders_dir` option, mushroom finding corrected (label correction instead of a perception edit).**
 
 ---
 
@@ -662,3 +663,19 @@ Paste this together with this file (and the project, or at least the code-only s
 > I'm continuing a project called **Farm Agent** (OpenCV AI Competition 2026, powered by AWS). Please read `HANDOFF.md` fully before answering. Work in the existing code; don't rewrite what works. After any change run `python dev/regression.py` and, for UI changes, take screenshots with `dev/ui_screenshots.py` and look at them. Be explicit about what is simulated or untested. Deliver changes as a small zip of only the changed files plus a short note. I'm on Fedora Linux with my own venv and I'm new to LLMs/AWS, so explain plainly. The next thing I want to do is: **<your request>**.
 
 **Working agreements to keep:** never reverse a user decision silently (§1); never delete from `logs/` or overwrite `dynamo_table.json`; never touch Tk from non-UI threads; label simulated things as simulated everywhere (UI, README, report); keep `requirements.txt` pinned; keep README and this file in sync with the code.
+
+---
+
+## 21. PyBullet integration and the scheduling / freeze fix (added later)
+
+**What exists.** `pybullet_sim/` is a PyBullet model of the farm's gantry robot (`gantry_robot.py`: physics + the camera/service agents as generator tasks run in lock-step by a cooperative scheduler; `multiview_localization.py`; `pod_registry.py` geometry; URDFs; `docs/`). `pybullet_sim/bridge.py` connects it to the application: the engine calls `bridge.enqueue_visit(...)` for every logged scan and the order book's transport is wrapped (`wrap_transport`) so every dispatched order also goes to `bridge.enqueue_order(...)`. The bridge owns ONE physics thread; **every PyBullet call must stay on that thread**. The app builds it in `App._attach_pybullet` (background start, fallback to the built-in fleet).
+
+**Scheduling model (v2, replaces the "wait for a partner order" design).** Work = *side jobs* (one pod, one side; kinds `visit` and `order`). The gantry serves one station (row, col) at a time via `GantryRobot.service_station_live(row, col, assess, poll)`: every physics step, for each *idle* side the gantry calls `poll(idle_sides)` (bridge `_poll_new_work`) which returns `{side: [pods]}` to start now, so a side picks up new work while the other side is still busy; the session ends when both sides are idle and nothing is queued for the station. One job per pod at a time. Order progress comes from the gantry's events (`_on_robot_event`: `plant_scan` / `assess` / `camera_left` / `service_start` / `service_contact` → step counter; `service_done` or `service_skip` → `complete`). Failures call `OrderBook.fail` (lane released). `start_async` / `abandon` / `request_stop` / `_shutdown_cleanup` guarantee no order is left dispatched/in-progress when the simulator cannot start or dies. The `GantryRobot.service_station` method is the original fixed-list version and is kept (used by `main.py`/tools).
+
+**Why it froze (root causes found):** 60 s partner wait for lone orders (measured 60.1 s); `bridge.start()` and `engine.close()` on the Tk thread; failed jobs leaving orders in progress forever; `_pump`/`_tick` ending permanently after one exception (no `try/finally`); six ONNX inferences inside one physics-loop turn. Details and evidence: `FREEZE_FIX_NOTES.md`.
+
+**Rules for future changes.** (1) The order book calls `bridge.enqueue_order` *while holding its own lock*, so the bridge must **never call the order book while holding its `_condition` lock** (it currently never does — keep it that way). (2) Periodic UI loops must be exception-proof (`try/except` + `finally: after(...)`). (3) No blocking calls (`bridge.start`, `engine.close`, `join`) on the Tk thread. (4) `poll()` runs on the physics thread, inside the step loop: keep it cheap.
+
+**Tests.** `python dev/check_bridge.py` (27 checks, fake gantry, no PyBullet), `python dev/check_gantry_session.py` (15 checks; the real `service_station_live` with PyBullet stubbed), `xvfb-run … python dev/ui_live_check.py [--fallback] [--profile] [--shots dir]` (real app on a virtual display; measures window stalls and front/back overlap), plus `dev/regression.py`. **Not verified:** anything with real PyBullet (physics, rendering, GUI, collisions under the live scheduler; run `dev/integration_smoke.py` and `pybullet_sim/tools/verify_motion.py`), and the hypothesis that PyBullet rendering holds the GIL.
+
+**Known limits.** One gantry = one station at a time; per side, jobs run one after another; a front pod gets 4 visits per run and a back pod 1, so the front side is busier; `App.PAIR_SIDES` interleaves front/back pods in the queue.

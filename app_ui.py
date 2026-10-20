@@ -502,7 +502,7 @@ class WorkerPanel(tk.Frame):
             "awaiting_approval": ("⏳ Waiting for your approval — " + (o.approval_note or "approve to send it to the robot"),
                                   C["warn"]),
             "approved": (f"→ sent to {o.agent}, starting…", C["accent"]),
-            "dispatched": (f"→ sent to {o.agent}, starting…" + ("" if sim else " (waiting for a real agent)"),
+            "dispatched": (f"→ sent to {o.agent}, starting…" + ("" if sim else " (queued for the robot)"),
                            C["accent"]),
             "in_progress": (f"▶ {o.agent} · step {min(o.progress + 1, n)}/{n}", C["growth"]),
             "completed": (f"✓ Done by {o.agent}", C["good"]),
@@ -928,6 +928,7 @@ ORDER_STATUS = {   # label, colour
     "completed": ("done", C["good"]),
     "rejected": ("rejected", C["dim"]),
     "cancelled": ("superseded", C["dim"]),
+    "failed": ("robot job failed", C["bad"]),
     "scheduled": ("scheduled", C["muted"]),
 }
 TASK_COLOR = {"TREAT": "#dc2828", "HARVEST": "#e6960a", "RECAPTURE": C["accent"], "VERIFY": C["muted"],
@@ -1323,8 +1324,9 @@ class FleetStrip(tk.Frame):
                 extra.append(f"⏳{info['awaiting']}")
             tail = ("   " + "  ·  ".join(extra)) if extra else ""
             if act:
-                self._ref[agent] = act["order_id"]
-                label.config(text=f"{act['order_id']} {act['task']} {act['pod']} · {act['step']}/{act['n']} "
+                self._ref[agent] = act["order_id"] or None          # plain camera visits have no order to open
+                head = f"{act['order_id']} " if act["order_id"] else ""
+                label.config(text=f"{head}{act['task']} {act['pod']} · {act['step']}/{act['n']} "
                                   f"{act['action']}{tail}", fg=C["growth"])
                 box.config(highlightbackground=C["growth"])
                 W = max(bar.winfo_width(), 10)
@@ -1631,6 +1633,8 @@ class App(tk.Tk):
     def _selected_pods(self):
         crop = self.crop_var.get()
         pods = [p for p in PODS if crop == "all" or p["crop_type"] == crop]
+        if self.PAIR_SIDES:
+            pods = self._pair_sides(pods)
         try:
             lim = int(self.pods_var.get())
         except ValueError:
@@ -1713,45 +1717,60 @@ class App(tk.Tk):
                 c.render(self.engine.slot_view(i))
 
     # --- run controls ----------------------------------------------------
+    PAIR_SIDES = True      # queue each front pod next to its back counterpart so both sides work at the same time
+
+    @staticmethod
+    def _pair_sides(pods):
+        """Order the queue so every front pod is followed by its back counterpart (same rail / station / layer).
+        With two lanes the front and back agents then work at the same time, instead of all front pods first."""
+        def key(p):
+            slot = int(p["pod_id"].rsplit("-", 1)[1][1:])
+            return (p["rail"], p["station"], slot, 0 if p["side"] == "front" else 1)
+        try:
+            return sorted(pods, key=key)
+        except Exception:
+            return pods
+
     def start(self):
         if self.state in ("running", "paused", "stopping"):
             return
-        if self.engine is not None:
-            self.engine.close()
+        old = self.engine
+        if old is not None and not old._stopped.is_set():
+            # Closing the previous run (saving logs, parking the robot) can take seconds: do it in the background and
+            # start the new run when it is done, instead of freezing the window while we wait.
+            old.stop()
+            self.status("closing the previous run…")
+            self.start_btn.set_enabled(False)
+            self._await_old_engine(old, time.monotonic() + 40.0)
+            return
+        self._do_start()
+
+    def _await_old_engine(self, old, deadline):
+        if old._stopped.is_set() or time.monotonic() > deadline:
+            self._do_start()
+            return
+        self.after(100, lambda: self._await_old_engine(old, deadline))
+
+    def _do_start(self):
         pods = self._selected_pods()
         if not pods:
+            self._set_state(self.state)
             return
         if self.reset_var.get() and not messagebox.askyesno(
                 "Reset history", "This deletes dynamo_table.json AND every crop's saved age, so all pods return to their starting ages.\nContinue?"):
+            self._set_state(self.state)
             return
         n = int(self.slots_var.get())
         self._build_cards()
         self.log.config(state="normal")
         self.log.delete("1.0", "end")
         self.log.config(state="disabled")
-        self.status("loading models…")
-        self.update_idletasks()
-        perception.warm_up()
+        # (The analysis models are loaded by the engine's own worker threads; warming them up here, on the Tk thread,
+        # only froze the window and did not help those threads.)
         self.engine = FarmEngine(pods, n_slots=n, settings=self.settings, reset_history=self.reset_var.get())
         self._pybullet_bridge = None
         if self.pybullet_var.get():
-            bridge = PyBulletBridge(gui=True, on_log=lambda msg, level="info":
-                                    self.engine.events.put(("log", (time.strftime("%H:%M:%S"), level, msg))))
-            ok, detail = bridge.start()
-            if ok:
-                bridge.attach_orders(self.engine.orders)
-                self.engine.simulation_bridge = bridge
-                self.engine.orders.transport = bridge.wrap_transport(self.engine.orders.transport)
-                # Dispatched orders are executed by the PyBullet gantry, not by the
-                # old time-based fleet simulator. This prevents duplicate robot jobs.
-                self.engine.orders.policy.simulate_robots = False
-                self._pybullet_bridge = bridge
-                self.engine.events.put(("log", (time.strftime("%H:%M:%S"), "ok", detail)))
-            else:
-                bridge.request_stop()
-                bridge.join(timeout=2.0)
-                self.engine.events.put(("log", (time.strftime("%H:%M:%S"), "warn",
-                    detail + "; using the built-in fleet simulator instead.")))
+            self._attach_pybullet(self.engine)
         self.reset_var.set(False)
         self.tree.delete(*self.tree.get_children())
         for p in pods:
@@ -1762,6 +1781,29 @@ class App(tk.Tk):
             self.engine.set_planner(self._planner_kind(), self.model_var.get().strip() or "llama3.2:3b",
                                     self.pimg_var.get())
         self._refresh_queue()
+
+    def _attach_pybullet(self, engine):
+        """Connect the PyBullet gantry WITHOUT blocking the window: the 3-D scene is built on its own thread while the
+        run starts at once. Work queued meanwhile is held until the gantry is ready; if it cannot start, the
+        built-in fleet simulator takes over every queued order."""
+        def log(msg, level="info"):
+            engine.events.put(("log", (time.strftime("%H:%M:%S"), level, msg)))
+        bridge = PyBulletBridge(gui=True, on_log=log)
+        bridge.attach_orders(engine.orders)
+        engine.simulation_bridge = bridge
+        original_transport = engine.orders.transport
+        engine.orders.transport = bridge.wrap_transport(original_transport)
+        # Dispatched orders are executed by the PyBullet gantry, not by the time-based fleet simulator (no duplicates).
+        engine.orders.policy.simulate_robots = False
+        self._pybullet_bridge = bridge
+
+        def unavailable(reason):
+            bridge.abandon(reason)                       # orders stay 'dispatched' ...
+            engine.orders.transport = original_transport
+            log(f"{reason}; using the built-in fleet simulator instead.", "warn")
+            engine.orders.set_simulation(True)           # ... and the built-in fleet picks them up
+        log("starting the PyBullet gantry in the background (the window stays usable)…", "info")
+        bridge.start_async(on_ready=lambda: log("PyBullet robot simulation connected", "ok"), on_failed=unavailable)
 
     def toggle_pause(self):
         if not self.engine:
@@ -1865,40 +1907,77 @@ class App(tk.Tk):
         self.log.see("end")
         self.log.config(state="disabled")
 
-    def _pump(self):
-        eng = self.engine
-        if eng:
-            slots, queue_dirty, orders_dirty = set(), False, False
+    def _loop_error(self, where):
+        """Report an exception from a UI loop without ever letting it stop that loop. (Both periodic loops used to
+        reschedule themselves only on success, so ONE exception silently ended all screen updates for good - the
+        window still answered clicks but never changed again, which looks exactly like a freeze.)"""
+        import traceback
+        tb = traceback.format_exc()
+        sys.stderr.write(f"[ui] error in {where}:\n{tb}\n")
+        seen = self.__dict__.setdefault("_loop_err_seen", {})
+        now = time.monotonic()
+        if now - seen.get(where, -99.0) > 5.0:
+            seen[where] = now
             try:
-                while True:
-                    kind, payload = eng.events.get_nowait()
-                    if kind == "slot":
-                        slots.add(payload)
-                    elif kind == "queue":
-                        queue_dirty = True
-                    elif kind == "orders":
-                        orders_dirty = True
-                    elif kind == "log":
-                        self._log_line(payload[2], payload[1], payload[0])
-                    elif kind == "state":
-                        self._set_state(payload)
-                    elif kind == "finished":
-                        self._announce(payload, "Run complete")
-                    elif kind == "stopped":
-                        self._set_state("stopped")
-                        self._announce(payload, "Run stopped")
-            except queue.Empty:
+                self._log_line(f"internal UI error in {where}: {tb.strip().splitlines()[-1]}", "error")
+            except Exception:
                 pass
-            for i in slots:
-                if i < len(self.cards):
+
+    def _pump(self):
+        """Drain the engine's event queue (every 80 ms) and update the widgets."""
+        try:
+            self._pump_once()
+        except Exception:
+            self._loop_error("event pump")
+        finally:
+            self.after(80, self._pump)
+
+    def _pump_once(self):
+        eng = self.engine
+        if not eng:
+            return
+        slots, queue_dirty, orders_dirty = set(), False, False
+        for _ in range(400):                    # a burst of events can never monopolise the window
+            try:
+                kind, payload = eng.events.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                if kind == "slot":
+                    slots.add(payload)
+                elif kind == "queue":
+                    queue_dirty = True
+                elif kind == "orders":
+                    orders_dirty = True
+                elif kind == "log":
+                    self._log_line(payload[2], payload[1], payload[0])
+                elif kind == "state":
+                    self._set_state(payload)
+                elif kind == "finished":
+                    self._announce(payload, "Run complete")
+                elif kind == "stopped":
+                    self._set_state("stopped")
+                    self._announce(payload, "Run stopped")
+            except Exception:
+                self._loop_error(f"event '{kind}'")
+        for i in slots:
+            if i < len(self.cards):
+                try:
                     self.cards[i].render(eng.slot_view(i))
-            if queue_dirty:
+                except Exception:
+                    self._loop_error(f"pod card {i + 1}")
+        if queue_dirty:
+            try:
                 self._refresh_queue()
-            if orders_dirty:
-                for c in self.cards:
+            except Exception:
+                self._loop_error("pod queue")
+        if orders_dirty:
+            for c in self.cards:
+                try:
                     c.refresh_orders()
                     c.refresh_worker_panels()
-        self.after(80, self._pump)
+                except Exception:
+                    self._loop_error("robot order line")
 
     def _announce(self, info, title):
         s = info["summary"]
@@ -1908,41 +1987,71 @@ class App(tk.Tk):
             self._log_line(f"log: {info['csv']}", "ok")
 
     def _tick(self):
+        """Summary, fleet strip and time-based panel flips (every 250 ms). Never stops rescheduling itself."""
+        try:
+            self._tick_once()
+        except Exception:
+            self._loop_error("status tick")
+        finally:
+            self.after(250, self._tick)
+
+    def _tick_once(self):
         eng = self.engine
-        if eng:
+        if not eng:
+            return
+        try:
             st = eng.stats()
             pct = 100 * st["pods_done"] / st["total"] if st["total"] else 0
             self.progress.config(value=pct)
-            m, s = divmod(int(st["elapsed"]), 60)
+            m, s_ = divmod(int(st["elapsed"]), 60)
             self.progress_text.config(
-                text=f"{st['pods_done']}/{st['total']} pods  ·  {st['steps']} scans  ·  {m:02d}:{s:02d} elapsed  ·  "
+                text=f"{st['pods_done']}/{st['total']} pods  ·  {st['steps']} scans  ·  {m:02d}:{s_:02d} elapsed  ·  "
                      f"{st['avg_latency']:.2f}s avg inference")
             for a, chip in self.action_chips.items():
                 chip.config(text=f"{SHORT_ACTION[a]}  {st['actions'][a]}")
             g, d = st["growth"], st["disease"]
             self.acc_chip.set(f"growth {g[0]}/{g[1]}   disease {d[0]}/{d[1]}", C["panel2"], C["text"])
+        except Exception:
+            self._loop_error("summary")
+        try:
             fleet_status = eng.orders.fleet_status()
-            if eng.simulation_bridge is not None:
-                fleet_status = eng.simulation_bridge.fleet_status(fleet_status)
+            bridge = eng.simulation_bridge
+            if bridge is not None:
+                fleet_status = bridge.fleet_status(fleet_status)
             self.fleet_strip.update_status(fleet_status)
-            for c in self.cards:
+        except Exception:
+            self._loop_error("fleet strip")
+        for c in self.cards:
+            try:
                 c.refresh_worker_panels()
+            except Exception:
+                self._loop_error("worker panel")
+        try:
             pending = eng.orders.pending_count()
             self.orders_btn.set_text("🤖 Robot orders" + (f" · {pending} to approve" if pending else ""))
             self.orders_btn.set_kind("warn" if pending else "ghost")
-        self.after(250, self._tick)
+        except Exception:
+            self._loop_error("orders button")
 
     def on_close(self):
-        if self.engine and self.state in ("running", "paused", "finished"):
-            if self.state != "finished" and not messagebox.askyesno(
-                    "Quit", "A run is in progress. Stop it, save the log and quit?"):
+        eng = self.engine
+        if eng and self.state in ("running", "paused"):
+            if not messagebox.askyesno("Quit", "A run is in progress. Stop it, save the log and quit?"):
                 return
-        if self.engine:
+        if eng and not eng._stopped.is_set():
+            eng.stop()                                   # saves the log and parks the robot in the background
             self.status("saving log and shutting down…")
-            self.update_idletasks()
-            self.engine.close()
-        self.destroy()
+            self._close_deadline = time.monotonic() + 8.0
+            self._finish_close()
+        else:
+            self.destroy()
 
+    def _finish_close(self):
+        eng = self.engine
+        if eng is None or eng._stopped.is_set() or time.monotonic() > self._close_deadline:
+            self.destroy()
+            return
+        self.after(100, self._finish_close)
 
 def main():
     App().mainloop()
