@@ -20,6 +20,8 @@ import threading
 import cv2
 import numpy as np
 
+from capture_io import load_image as _collect_image      # C++ pod_capture when built, else cv2
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -216,7 +218,7 @@ def _load_image(image):
     (e.g. a frame captured in PyBullet), so classify_pod doesn't force a
     round-trip through disk when the caller already has pixels in memory."""
     if isinstance(image, (str, Path)):
-        img = cv2.imread(str(image))
+        img = _collect_image(image)
         if img is None:
             raise FileNotFoundError(f"Could not read image at {image}")
         return img

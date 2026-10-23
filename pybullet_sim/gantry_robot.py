@@ -143,7 +143,15 @@ CHANGING THINGS
 
 import math
 import cv2
+import numpy as np
 import os
+try:
+    # C++ frame collector (pybind11). Built from cpp/ -- see cpp/README. Falls back to cv2 if absent.
+    import pod_capture as _cpp_capture
+except ImportError:
+    _cpp_capture = None
+print("[pod_capture] C++ frame collector ACTIVE" if _cpp_capture else
+      "[pod_capture] module not found -> using cv2 fallback")
 import time
 
 import pybullet as p
@@ -151,12 +159,25 @@ import pybullet_data
 
 # Farm geometry and the per-pod plant layout come from pod_registry.py (the data layer).
 # Everything about the MACHINE lives in this file and in urdf/gantry.urdf.
+from .pod_markers import add_pod_marker, marker_id_for_pod, estimate_pod_pose_from_markers
+from . import stereo_rig, sim_options, rig_feed
 from .pod_registry import (
     ROWS, COLUMNS, LAYERS_PER_STATION, COLUMN_SPACING_M, ROW_SPACING_M,
     LAYER_SPACING_M, BASE_HEIGHT_M, TROUGH_HALF_EXTENTS_M, SIDE_OFFSET_M,
     TOP_DOCK_Y, BOTTOM_DOCK_Y, DOCK_PARK_X, HORIZONTAL_RAILS,
     PLANT_X_OFFSETS_M, PLANTS_PER_POD, PLANT_PROTRUSION_M, PLANT_HALF_SIZE_M,
 )
+
+# How a pod's pose is found from the camera views:
+#   "vision"          ArUco marker on the pod -> OpenCV detector -> solvePnP (RGB image only). If the
+#                     marker can't be read, falls back to the simulator-mask pose and says so in the record.
+#   "simulator_mask"  the original method: PyBullet's segmentation mask picks out the pod.
+POD_LOCALIZATION_MODE = "vision"      # (the run-time switch is sim_options.OPTIONS["localization"], set from the Settings tab)
+
+# Each camera agent's head carries TWO cameras (stereo_rig.py): 4 cameras in total, 2 per camera agent.
+# The rig is calibrated once with cv2.calibrateMultiviewExtended (logs/stereo_rig_calibration.json) and the
+# calibrated intrinsics/extrinsics are what the marker localization uses. False = one camera per head.
+STEREO_RIG_ENABLED = True
 
 # =============================================================================
 # CONSTANTS -- GROUP 1: how joints are driven, and when a move counts as "done"
@@ -619,6 +640,10 @@ class GantryRobot:
         # so the simulator can be used by both the GUI and headless checks.
         self.localization_records = {}
         self.on_localization = None
+        self.rig = None                # calibrated two-camera head rig (stereo_rig), None = single camera
+        self._rig_checked = False
+        self.aruco_ids = {}            # pod_id -> ArUco marker id printed on that pod
+        self.aruco_body_ids = {}       # pod_id -> body id of the marker plate
         # every static thing the machine must stay clear of, recorded as it is
         # built: (name, (xmin,ymin,zmin), (xmax,ymax,zmax)). Used by
         # verify_motion.py; cylinders are recorded as their bounding box.
@@ -777,7 +802,7 @@ class GantryRobot:
         # troughs (+ a bracket tying each to its pole)
         half = list(TROUGH_HALF_EXTENTS_M)
         bracket_color = (0.3, 0.3, 0.32, 1.0)
-        for pod in self.pods:
+        for pod_index, pod in enumerate(self.pods):
             pos = pod["position_m"]
             color = CROP_MARKER_COLOR[pod["crop_type"]]
             vis = p.createVisualShape(p.GEOM_BOX, halfExtents=half, rgbaColor=color)
@@ -786,6 +811,10 @@ class GantryRobot:
                 basePosition=[pos["x"], pos["y"], pos["z"]],
             )
             self.pod_marker_ids[pod["pod_id"]] = body_id
+            # fiducial the camera agents read to find this pod (and to know which pod it is)
+            self.aruco_ids[pod["pod_id"]] = marker_id_for_pod(pod_index)
+            self.aruco_body_ids[pod["pod_id"]] = add_pod_marker(
+                p, self.client, pod, self.aruco_ids[pod["pod_id"]], half[1])
             self.obstacles.append((
                 f"trough {pod['pod_id']}",
                 (pos["x"] - half[0], pos["y"] - half[1], pos["z"] - half[2]),
@@ -1379,6 +1408,35 @@ class GantryRobot:
             if arrived:
                 return
 
+    def _publish_rig_sample(self, pod, views, vision_pose, pose, truth):
+        """Hand this pod's two-camera data to the application's Calibration tab (see rig_feed). A deque append plus
+        a few small array copies, three times per pod visit; never raises into the robot."""
+        try:
+            def frame(rgba):
+                return None if rgba is None else cv2.cvtColor(np.ascontiguousarray(rgba[:, :, :3]), cv2.COLOR_RGB2BGR)
+            view_samples = []
+            for view, entry in zip(views, vision_pose["views"]):
+                view_samples.append({
+                    "view_index": entry["view_index"], "frame_a": frame(view.get("rgba")),
+                    "frame_b": frame(view.get("rgba_b")),
+                    "corners_a": entry.get("corners"), "corners_b": entry.get("corners_b"),
+                    "reprojection_px_a": entry.get("reprojection_px"), "reprojection_px_b": entry.get("reprojection_px_b"),
+                    "center_a": entry.get("center"), "center_b": entry.get("center_b"),
+                    "stereo_center": entry.get("stereo_center"), "stereo_vs_pnp_mm": entry.get("stereo_vs_pnp_mm")})
+            fused = vision_pose.get("center_world")
+            truth = [float(v) for v in truth]
+            rig_feed.push({
+                "pod_id": pod["pod_id"], "side": pod["side"], "marker_id": vision_pose.get("marker_id"),
+                "method": pose.get("method"), "valid": bool(vision_pose["valid"]),
+                "fallback_used": bool(pose.get("fallback_used")), "rig": vision_pose.get("rig"),
+                "views": view_samples, "fused_center": fused, "truth_center": truth,
+                "error_mm": None if fused is None else float(np.linalg.norm(np.asarray(fused) - np.asarray(truth)) * 1000),
+                "stereo_center": vision_pose.get("stereo_center_world"),
+                "stereo_vs_pnp_mm_mean": vision_pose.get("stereo_vs_pnp_mm_mean"),
+                "camera_measurements": vision_pose.get("camera_measurement_count")})
+        except Exception:                                   # noqa: BLE001 - the display must never break the robot
+            pass
+
     def _g_wait(self, seconds):
         """Yield for `seconds` of simulation time (at least one step)."""
         for _ in range(max(1, int(seconds * 240))):
@@ -1529,6 +1587,16 @@ class GantryRobot:
         it centres its head and stows."""
         # (1) descend to the first (top) pod. Nothing else is deployed yet.
         cam = self.agent(side, "camera")
+        if sim_options.OPTIONS["stereo_rig"] and not self._rig_checked:
+            # Both camera agents share one rig design. The robot only LOADS the saved calibration (made from the
+            # application's Calibration tab) -- it never runs a calibration itself, which could stall the step loop.
+            self._rig_checked = True
+            from .multiview_localization import IMAGE_WIDTH as _W, IMAGE_HEIGHT as _H
+            self.rig, why = stereo_rig.load_saved(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), (_W, _H))
+            self._emit("stereo_rig", agent=cam, calibrated=self.rig is not None, reason=why,
+                       rms_px=None if self.rig is None else self.rig["rms_px"],
+                       baseline_m=None if self.rig is None else self.rig["baseline_m"])
         first = pods[0]
         camera_scan_height = first["position_m"]["z"] + TROUGH_HALF_EXTENTS_M[2] + 0.22
         yield from self._g_settle({cam.joint: hoist_extension_for(camera_scan_height)})
@@ -1550,6 +1618,11 @@ class GantryRobot:
                 target = [float(pod["position_m"]["x"]),
                           float(pod["position_m"]["y"]),
                           float(pod["position_m"]["z"] + TROUGH_HALF_EXTENTS_M[2])]
+                eye_b = target_b = None
+                if self.rig is not None:
+                    # two lenses on the head, side by side, looking the same way: A (left) is the
+                    # primary camera whose frames feed the models; B (right) adds a second measurement.
+                    (eye, target), (eye_b, target_b) = stereo_rig.rig_cameras(eye, target)
                 view_matrix = p.computeViewMatrix(eye, target, [0, 0, 1])
                 from .multiview_localization import (IMAGE_WIDTH, IMAGE_HEIGHT,
                     CAMERA_FOV_DEG, CAMERA_NEAR, CAMERA_FAR)
@@ -1562,6 +1635,14 @@ class GantryRobot:
                     renderer=p.ER_TINY_RENDERER,
                     flags=p.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX,
                     physicsClientId=self.client)
+                image_b = None
+                if eye_b is not None:
+                    view_matrix_b = p.computeViewMatrix(eye_b, target_b, [0, 0, 1])
+                    image_b = p.getCameraImage(
+                        IMAGE_WIDTH, IMAGE_HEIGHT, viewMatrix=view_matrix_b,
+                        projectionMatrix=projection_matrix,
+                        renderer=p.ER_TINY_RENDERER, flags=p.ER_NO_SEGMENTATION_MASK,
+                        physicsClientId=self.client)
                 views.append({
                     "view_index": view_index,
                     "camera_position_world": eye,
@@ -1570,6 +1651,8 @@ class GantryRobot:
                     "rgba": np.asarray(image[2], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH, 4),
                     "depth": np.asarray(image[3], dtype=np.float64).reshape(IMAGE_HEIGHT, IMAGE_WIDTH),
                     "segmentation": np.asarray(image[4], dtype=np.int64).reshape(IMAGE_HEIGHT, IMAGE_WIDTH),
+                    "rgba_b": None if image_b is None else
+                              np.asarray(image_b[2], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH, 4),
                 })
                 self._emit("plant_scan", pod, agent=cam, plant=k,
                            localization_view=view_index + 1)
@@ -1606,10 +1689,21 @@ class GantryRobot:
                 visit_tag = int(result.get("visit_num", 1) or 1)
                 path = os.path.join(capture_dir,
                     f"{pod['pod_id']}_visit{visit_tag}_view{int(view['view_index']) + 1}.png")
-                bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
-                cv2.imwrite(path, bgr)
+                if _cpp_capture is not None:
+                    # C++ converts RGBA->BGR and writes the PNG (GIL released), returns the BGR array.
+                    bgr = _cpp_capture.collect_frame(rgba, path)
+                else:
+                    bgr = cv2.cvtColor(rgba[:, :, :3], cv2.COLOR_RGB2BGR)
+                    cv2.imwrite(path, bgr)
+                rgba_b = view.get("rgba_b")
+                if rgba_b is not None:                          # the head's second camera, same instant
+                    path_b = path[:-4] + "_B.png"
+                    if _cpp_capture is not None:
+                        _cpp_capture.collect_frame(rgba_b, path_b)
+                    else:
+                        cv2.imwrite(path_b, cv2.cvtColor(rgba_b[:, :, :3], cv2.COLOR_RGB2BGR))
                 image_paths.append(path)
-                saved_bgr_frames.append(bgr.copy())
+                saved_bgr_frames.append(bgr)
                 if classify_pod is None:
                     view_model_scores.append({"error": "OpenCV perception import unavailable"})
                     continue
@@ -1672,9 +1766,35 @@ class GantryRobot:
                     self._emit("multiview_contact_sheet_failed", pod, agent=f"camera_{side}",
                                error=repr(exc))
 
-            pose = estimate_pod_pose(
+            # The simulator-mask estimate is always computed: it is the reference the vision
+            # estimate is scored against (and the fallback if the marker can't be read).
+            mask_pose = estimate_pod_pose(
                 views, pod["pod_id"], self.pod_marker_ids[pod["pod_id"]],
                 pod["side"], TROUGH_HALF_EXTENTS_M)
+            pose = mask_pose
+            if sim_options.OPTIONS["localization"] == "vision":
+                vision_pose = estimate_pod_pose_from_markers(
+                    views, pod, self.aruco_ids[pod["pod_id"]], TROUGH_HALF_EXTENTS_M, rig=self.rig)
+                truth = np.array(p.getBasePositionAndOrientation(
+                    self.pod_marker_ids[pod["pod_id"]], physicsClientId=self.client)[0])
+                if vision_pose["valid"]:
+                    pose = vision_pose
+                    pose["fallback_used"] = False
+                else:
+                    pose = dict(mask_pose)
+                    pose["method"] = mask_pose["method"] + "_fallback_after_marker_not_read"
+                    pose["fallback_used"] = True
+                    pose["marker_attempt"] = {"contributing_view_count": vision_pose["contributing_view_count"],
+                                              "views": vision_pose["views"]}
+                # Ground truth = where the simulator actually put the trough. Never used to steer the robot.
+                pose["ground_truth_center_world"] = [float(v) for v in truth]
+                for name, est in (("vision_error_m", vision_pose.get("center_world")),
+                                  ("simulator_mask_error_m", mask_pose.get("center_world"))):
+                    pose[name] = None if est is None else [float(a - b) for a, b in zip(est, truth)]
+                self._emit("pod_vision_pose", pod, agent=cam, valid=vision_pose["valid"],
+                           views_with_marker=vision_pose["contributing_view_count"],
+                           error_m=pose["vision_error_m"])
+                self._publish_rig_sample(pod, views, vision_pose, pose, truth)
             pose["model_scores"] = result.get("model_scores") or result.get("classification") or {}
             pose["decision"] = result.get("decision") or {}
             pose["application_pod_id"] = result.get("application_pod_id", pod["pod_id"])

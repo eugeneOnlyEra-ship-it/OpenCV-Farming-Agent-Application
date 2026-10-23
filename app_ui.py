@@ -33,16 +33,20 @@ Run:   python3 app_ui.py
 
 import base64
 import functools
+import importlib.util
 import json
 import os
 import queue
+import subprocess
 import sys
+import threading
 import time
 import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import messagebox, ttk
 
 import cv2
+import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.chdir(HERE)                      # the pipeline uses ./models, ./logs, ./dynamo_table.json
@@ -54,6 +58,10 @@ from farm_engine import (ACTIONS, FarmEngine, Settings, class_scores,   # noqa: 
 from pod_registry import PODS, STATION_LABELS       # noqa: E402
 from worker_planner import ALL_AGENTS, PRIORITY_LABEL   # noqa: E402
 from pybullet_sim.bridge import PyBulletBridge          # noqa: E402
+from capture_io import load_image as _collect_image     # noqa: E402  (C++ pod_capture when built, else cv2)
+# light modules only (no PyBullet, no robot module): the window must never import gantry_robot itself
+from pybullet_sim import sim_options, rig_feed, stereo_rig   # noqa: E402
+from pybullet_sim.multiview_localization import IMAGE_WIDTH as RIG_W, IMAGE_HEIGHT as RIG_H   # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Look & feel
@@ -101,7 +109,7 @@ def pretty(name):
 
 @functools.lru_cache(maxsize=48)
 def load_bgr(path):
-    img = cv2.imread(str(path))
+    img = _collect_image(path)
     if img is None:
         raise FileNotFoundError(path)
     return img
@@ -263,23 +271,44 @@ class ScorePanel(tk.Frame):
     def __init__(self, parent, fonts, title, accent, on_row_click):
         super().__init__(parent, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         self.f, self.accent, self.on_row_click = fonts, accent, on_row_click
-        tk.Label(self, text=title.upper(), bg=C["panel"], fg=accent, font=self.f["tiny_b"], anchor="w"
-                 ).pack(fill="x", padx=10, pady=(8, 0))
+        self._titles = (title.upper(), title.split()[0].upper())     # full / headline-only
+        self.title_label = tk.Label(self, text=self._titles[0], bg=C["panel"], fg=accent, font=self.f["tiny_b"],
+                                    anchor="w")
+        self.title_label.pack(fill="x", padx=10, pady=(8, 0))
         self.headline = tk.Label(self, text="—", bg=C["panel"], fg=C["text"], font=self.f["head"], anchor="w",
                                  justify="left")
         self.headline.pack(fill="x", padx=10)
         self.bind("<Configure>", lambda e: self.headline.config(wraplength=max(120, e.width - 22)))
         self.sub = tk.Label(self, text="", bg=C["panel"], fg=C["muted"], font=self.f["small"], anchor="w")
-        self.sub.pack(fill="x", padx=10)
         self.canvas = tk.Canvas(self, bg=C["panel"], highlightthickness=0, height=60)
-        self.canvas.pack(fill="both", expand=True, padx=8, pady=(4, 0))
         self.verified = tk.Label(self, text="", bg=C["panel"], fg=C["muted"], font=self.f["small"], anchor="w")
-        self.verified.pack(fill="x", padx=10, pady=(0, 6))
         self.rows, self.healthy, self.threshold, self.highlight = [], None, 0.5, None
         self._row_hit, self._after, self._compact = [], None, False
+        self.full = True            # False = headline only (the per-class bars live behind the 'Full scores' setting)
+        self._layout()
         self.bind("<Configure>", self._on_panel_resize, add="+")
         self.canvas.bind("<Configure>", lambda e: self._schedule())
         self.canvas.bind("<Button-1>", self._click)
+
+    def _layout(self):
+        """Pack the lines under the headline: sub, (bars), verified. Short panels in full mode drop the
+        secondary lines so the score bars keep the room; headline-only mode has no bars at all."""
+        for w in (self.sub, self.canvas, self.verified):
+            w.pack_forget()
+        small = self._compact and self.full
+        if not small:
+            self.sub.pack(fill="x", padx=10)
+        if self.full:
+            self.canvas.pack(fill="both", expand=True, padx=8, pady=(4, 0))
+        if not small:
+            self.verified.pack(fill="x", padx=10, pady=(0, 6))
+
+    def set_detail(self, full):
+        if full != self.full:
+            self.full = full
+            self.title_label.config(text=self._titles[0 if full else 1])
+            self._layout()
+            self.redraw()
 
     def _on_panel_resize(self, e):
         """Short panels (4 pods on screen) drop the secondary lines so the
@@ -287,12 +316,7 @@ class ScorePanel(tk.Frame):
         compact = e.height < 215
         if compact != self._compact:
             self._compact = compact
-            if compact:
-                self.sub.pack_forget()
-                self.verified.pack_forget()
-            else:
-                self.sub.pack(fill="x", padx=10, before=self.canvas)
-                self.verified.pack(fill="x", padx=10, pady=(0, 6))
+            self._layout()
 
     def update_content(self, rows, headline, sub, verified, healthy=None, threshold=0.5, highlight=None):
         self.headline.config(text=headline[0], fg=headline[1])
@@ -580,11 +604,13 @@ class PodCard(tk.Frame):
         self.flag_chip.pack(side="right", padx=6, before=self.pod_label)
         body = tk.Frame(self, bg=C["card"])
         body.pack(fill="both", expand=True, padx=12)
+        self.body = body
         body.grid_columnconfigure(0 if not mirrored else 1, weight=11, uniform="c")
         body.grid_columnconfigure(1 if not mirrored else 0, weight=9, uniform="c")
         body.grid_rowconfigure(0, weight=1, uniform="r")
         body.grid_rowconfigure(1, weight=1, uniform="r")
         img_col, sc_col = (0, 1) if not mirrored else (1, 0)
+        self._img_col, self._sc_col = img_col, sc_col
 
         self.disease_img = ImageView(body, self.f, on_click=self.zoom)
         self.growth_img = ImageView(body, self.f, on_click=self.zoom)
@@ -629,6 +655,19 @@ class PodCard(tk.Frame):
         self.timeline = Timeline(ctl, self.f, lambda idx: app.set_view(slot_id, idx))
         self.timeline.pack(side="left", fill="x", expand=True, padx=(6, 0))
         self.render(None)
+
+    def set_detail(self, full):
+        """full=True: every class score bar plus the technical trend line. full=False (default): just the
+        headline result per aspect, with the images given more room; the rest is one setting away."""
+        self.full_detail = full
+        for panel in (self.disease_panel, self.growth_panel):
+            panel.set_detail(full)
+        self.body.grid_columnconfigure(self._img_col, weight=11 if full else 12, uniform="c")
+        self.body.grid_columnconfigure(self._sc_col, weight=9 if full else 8, uniform="c")
+        if full:
+            self.trend.pack(fill="x", after=self.reason)
+        else:
+            self.trend.pack_forget()
 
     # --- interaction -----------------------------------------------------
     def toggle_highlight(self, kind, name):
@@ -1361,7 +1400,9 @@ class App(tk.Tk):
             "tiny": tkfont.Font(family=fam, size=8), "tiny_b": tkfont.Font(family=fam, size=8, weight="bold"),
             "big": tkfont.Font(family=fam, size=15, weight="bold"), "norm": tkfont.Font(family=fam, size=10),
             "norm_b": tkfont.Font(family=fam, size=10, weight="bold"),
+            "mono": tkfont.nametofont("TkFixedFont").copy(),
         }
+        self.fonts["mono"].configure(size=9)
         self._style()
         self.engine = None
         self._orders_win = None
@@ -1401,6 +1442,14 @@ class App(tk.Tk):
         s.map("TCombobox", fieldbackground=[("readonly", C["panel2"])], foreground=[("readonly", C["text"])])
         s.configure("TSpinbox", fieldbackground=C["panel2"], background=C["panel2"], foreground=C["text"],
                     arrowcolor=C["text"], bordercolor=C["line"])
+        s.configure("Main.TNotebook", background=C["bg"], borderwidth=0, bordercolor=C["bg"], lightcolor=C["bg"],
+                    darkcolor=C["bg"], tabmargins=(0, 2, 0, 0))
+        s.configure("Main.TNotebook.Tab", background=C["panel"], foreground=C["muted"], padding=(22, 7),
+                    font=self.fonts["norm_b"], borderwidth=0, bordercolor=C["bg"], lightcolor=C["panel"],
+                    darkcolor=C["panel"], focuscolor=C["panel"])
+        s.map("Main.TNotebook.Tab", background=[("selected", C["panel2"])], foreground=[("selected", C["text"])],
+              lightcolor=[("selected", C["panel2"])], darkcolor=[("selected", C["panel2"])],
+              bordercolor=[("selected", C["bg"])])
         self.option_add("*TCombobox*Listbox.background", C["panel2"])
         self.option_add("*TCombobox*Listbox.foreground", C["text"])
 
@@ -1416,19 +1465,10 @@ class App(tk.Tk):
         self.pause_btn = Btn(bar, "⏸  Pause", self.toggle_pause, "warn", f["norm_b"])
         self.step_btn = Btn(bar, "⏭  Step", self.step, "ghost", f["norm_b"])
         self.stop_btn = Btn(bar, "■  Stop", self.stop, "danger", f["norm_b"])
-        self.save_btn = Btn(bar, "💾 Save log now", self.save_log, "ghost", f["norm"])
         for b in (self.start_btn, self.pause_btn, self.step_btn, self.stop_btn):
             b.pack(side="left", padx=3)
-        self.save_btn.pack(side="left", padx=(14, 3))
-        self.pybullet_check = tk.Checkbutton(
-            bar, text="PyBullet robots", variable=self.pybullet_var,
-            bg=C["panel"], fg=C["text"], activebackground=C["panel"],
-            activeforeground=C["text"], selectcolor=C["panel2"],
-            font=f["small_b"], cursor="hand2",
-        )
-        self.pybullet_check.pack(side="left", padx=(8, 2))
         self.orders_btn = Btn(bar, "🤖 Robot orders", self.open_orders, "ghost", f["norm_b"])
-        self.orders_btn.pack(side="left", padx=3)
+        self.orders_btn.pack(side="left", padx=(18, 3))
         self.auto_btn = Btn(bar, "", self.toggle_auto, "ok", f["norm_b"])
         self.auto_btn.pack(side="left", padx=3)
         self.style_auto_button(self.auto_btn)
@@ -1457,49 +1497,54 @@ class App(tk.Tk):
         self.acc_chip.set("accuracy  –", C["panel2"], C["muted"])
         self.acc_chip.pack(side="left", padx=(10, 0))
 
-    # --- body: sidebar + cards + log ------------------------------------
+    # --- body: tabs ------------------------------------------------------
+    # Operations (default) = only what is happening in the run. Log = the full event log. Settings = everything
+    # you configure. Nothing you only set once lives on the main screen any more.
     def _build_body(self):
-        f = self.fonts
-        body = tk.Frame(self, bg=C["bg"])
-        body.pack(fill="both", expand=True, padx=12, pady=(4, 10))
-        body.grid_columnconfigure(1, weight=1)
-        body.grid_rowconfigure(0, weight=1)
+        self.notebook = ttk.Notebook(self, style="Main.TNotebook")
+        self.notebook.pack(fill="both", expand=True, padx=12, pady=(6, 10))
+        ops = tk.Frame(self.notebook, bg=C["bg"])
+        logtab = tk.Frame(self.notebook, bg=C["bg"])
+        settings = tk.Frame(self.notebook, bg=C["bg"])
+        cal = tk.Frame(self.notebook, bg=C["bg"])
+        self.notebook.add(ops, text="Operations")
+        self.notebook.add(cal, text="Calibration")
+        self.notebook.add(logtab, text="Log")
+        self.notebook.add(settings, text="Settings")
+        self._cal_tab_index = 1
+        self._log_tab_index = 2
+        self._log_alerts = 0
+        self.notebook.bind("<<NotebookTabChanged>>", self._tab_changed)
+        self._build_operations_tab(ops)
+        self._build_calibration_tab(cal)
+        self._build_log_tab(logtab)
+        self._build_settings_tab(settings)
 
-        side = tk.Frame(body, bg=C["bg"], width=300)
-        side.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 10))
+    def _panel(self, parent, title, note=None):
+        """A titled settings group."""
+        f = self.fonts
+        box = tk.Frame(parent, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        tk.Label(box, text=title.upper(), bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=12, pady=(10, 2))
+        if note:
+            tk.Label(box, text=note, bg=C["panel"], fg=C["dim"], font=f["tiny"], anchor="w", justify="left",
+                     wraplength=420).pack(fill="x", padx=12, pady=(0, 4))
+        return box
+
+    def _check(self, parent, text, var, command=None):
+        return tk.Checkbutton(parent, text=text, variable=var, command=command, bg=C["panel"], fg=C["text"],
+                              selectcolor=C["panel2"], activebackground=C["panel"], activeforeground=C["text"],
+                              font=self.fonts["small"], anchor="w", cursor="hand2")
+
+    def _build_operations_tab(self, ops):
+        f = self.fonts
+        ops.grid_columnconfigure(1, weight=1)
+        ops.grid_rowconfigure(0, weight=1)
+
+        side = tk.Frame(ops, bg=C["bg"], width=268)
+        side.grid(row=0, column=0, sticky="ns", padx=(0, 10), pady=(8, 0))
         side.grid_propagate(False)
         side.pack_propagate(False)
-
-        setup = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
-        setup.pack(fill="x", pady=(0, 8))
-        tk.Label(setup, text="RUN SETUP", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
-                 ).grid(row=0, column=0, columnspan=4, sticky="w", padx=10, pady=(8, 2))
-
-        def lbl(text, r, c):
-            tk.Label(setup, text=text, bg=C["panel"], fg=C["muted"], font=f["small"]).grid(
-                row=r, column=c, sticky="w", padx=(10, 4), pady=2)
-        lbl("Crop", 1, 0)
-        self.crop_var = tk.StringVar(value="all")
-        self.crop_cb = ttk.Combobox(setup, textvariable=self.crop_var, values=["all", "cabbage", "lettuce", "mushroom"],
-                                    width=9, state="readonly")
-        self.crop_cb.grid(row=1, column=1, columnspan=3, sticky="ew", padx=(0, 10), pady=2)
-        self.crop_cb.bind("<<ComboboxSelected>>", lambda e: self._fill_queue_preview())
-        lbl("Pods (0=all)", 2, 0)
-        self.pods_var = tk.StringVar(value="0")
-        self.pods_sp = ttk.Spinbox(setup, from_=0, to=72, width=3, textvariable=self.pods_var,
-                                   command=self._fill_queue_preview)
-        self.pods_sp.grid(row=2, column=1, sticky="w", pady=2)
-        lbl("On screen", 2, 2)
-        self.slots_var = tk.StringVar(value="2")
-        self.slots_sp = ttk.Spinbox(setup, from_=1, to=4, width=3, textvariable=self.slots_var, state="readonly",
-                                    command=self._build_cards)
-        self.slots_sp.grid(row=2, column=3, sticky="w", padx=(0, 8), pady=2)
-        self.reset_var = tk.BooleanVar(value=False)
-        self.reset_cb = tk.Checkbutton(setup, text="Reset history", variable=self.reset_var, bg=C["panel"],
-                                       fg=C["muted"], selectcolor=C["panel2"], activebackground=C["panel"],
-                                       activeforeground=C["text"], font=f["small"])
-        self.reset_cb.grid(row=3, column=0, columnspan=4, sticky="w", padx=(6, 0), pady=(2, 8))
-
         qbox = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         qbox.pack(fill="both", expand=True)
         tk.Label(qbox, text="POD QUEUE", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
@@ -1509,8 +1554,8 @@ class App(tk.Tk):
         self.tree.heading("crop", text="Crop")
         self.tree.heading("status", text="Status")
         self.tree.column("#0", width=76, stretch=False)
-        self.tree.column("crop", width=82, stretch=False)
-        self.tree.column("status", width=100)
+        self.tree.column("crop", width=78, stretch=False)
+        self.tree.column("status", width=84)
         sb = ttk.Scrollbar(qbox, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(8, 0), pady=(0, 8))
@@ -1519,70 +1564,33 @@ class App(tk.Tk):
             self.tree.tag_configure(tag, foreground=col)
         self.tree.bind("<Double-1>", lambda e: self.queue_run_next())
         qbtn = tk.Frame(side, bg=C["bg"])
-        qbtn.pack(fill="x", pady=(6, 8))
+        qbtn.pack(fill="x", pady=(6, 0))
         self.next_btn = Btn(qbtn, "⤒ Run next", self.queue_run_next, "primary", f["small_b"], 10, 5)
-        self.drop_btn = Btn(qbtn, "✕ Drop from run", self.queue_drop, "ghost", f["small_b"], 10, 5)
+        self.drop_btn = Btn(qbtn, "✕ Drop", self.queue_drop, "ghost", f["small_b"], 10, 5)
         self.next_btn.pack(side="left", padx=(0, 6))
         self.drop_btn.pack(side="left")
 
-        plan = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
-        plan.pack(fill="x", pady=(0, 8))
-        tk.Label(plan, text="AI PLANNER (OPTIONAL)", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
-                 ).pack(fill="x", padx=10, pady=(8, 2))
-        self.planner_var = tk.StringVar(value="Rules only")
-        self.planner_cb = ttk.Combobox(plan, textvariable=self.planner_var, state="readonly",
-                                       values=["Rules only", "Scripted demo (not an LLM)", "Local LLM via Ollama"])
-        self.planner_cb.pack(fill="x", padx=10)
-        self.planner_cb.bind("<<ComboboxSelected>>", lambda e: self._planner_changed())
-        mrow = tk.Frame(plan, bg=C["panel"])
-        mrow.pack(fill="x", padx=10, pady=(4, 0))
-        self.model_var = tk.StringVar(value="llama3.2:3b")
-        self.model_entry = tk.Entry(mrow, textvariable=self.model_var, width=16, bg=C["panel2"], fg=C["text"],
-                                    insertbackground=C["text"], relief="flat", font=f["small"])
-        self.model_entry.pack(side="left", fill="x", expand=True)
-        self.model_entry.bind("<Return>", lambda e: self._planner_changed())
-        self.model_entry.bind("<FocusOut>", lambda e: self._planner_changed())
-        self.pimg_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(mrow, text="send photo", variable=self.pimg_var, command=self._planner_changed, bg=C["panel"],
-                       fg=C["text"], selectcolor=C["panel2"], activebackground=C["panel"],
-                       activeforeground=C["text"], font=f["small"]).pack(side="left", padx=(6, 0))
-        self.planner_note = tk.Label(plan, text="Rule table decides. An AI planner can only ask for a better look.",
-                                     bg=C["panel"], fg=C["dim"], font=f["tiny"], justify="left", anchor="w",
-                                     wraplength=270)
-        self.planner_note.pack(fill="x", padx=10, pady=(3, 8))
-        self.model_entry.config(state="disabled")
-
-        tune = tk.Frame(side, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
-        tune.pack(fill="x")
-        tk.Label(tune, text="LIVE TUNING", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
-                 ).pack(fill="x", padx=10, pady=(8, 0))
-        self.var_delay = tk.DoubleVar(value=self.settings.delay_ms)
-        self.var_conf = tk.DoubleVar(value=self.settings.conf_threshold)
-        self.var_dis = tk.DoubleVar(value=self.settings.disease_threshold)
-        self.var_gro = tk.DoubleVar(value=self.settings.growth_threshold)
-        self._slider(tune, "Delay between images", self.var_delay, 0, 3000, "{:.0f} ms")
-        self._slider(tune, "Model sensitivity (box floor)", self.var_conf, 0.10, 0.80, "{:.2f}")
-        self._slider(tune, "Disease action threshold", self.var_dis, 0.10, 0.95, "{:.2f}")
-        self._slider(tune, "Growth trust threshold", self.var_gro, 0.10, 0.95, "{:.2f}")
-        tk.Label(tune, text="Sensitivity applies to the next scan / re-scan.\nThresholds re-evaluate shown decisions now.",
-                 bg=C["panel"], fg=C["dim"], font=f["tiny"], justify="left", anchor="w").pack(fill="x", padx=10, pady=(2, 4))
-        row = tk.Frame(tune, bg=C["panel"])
-        row.pack(fill="x", padx=10, pady=(0, 8))
-        self.boxes_var = tk.BooleanVar(value=True)
-        self.labels_var = tk.BooleanVar(value=True)
-        for txt, var in (("Boxes", self.boxes_var), ("Box labels", self.labels_var)):
-            tk.Checkbutton(row, text=txt, variable=var, command=self._apply_overlay, bg=C["panel"], fg=C["text"],
-                           selectcolor=C["panel2"], activebackground=C["panel"], activeforeground=C["text"],
-                           font=f["small"]).pack(side="left", padx=(0, 8))
-        Btn(row, "Defaults", self._defaults, "ghost", f["tiny_b"], 7, 2).pack(side="right")
-        for v in (self.var_delay, self.var_conf, self.var_dis, self.var_gro):
-            v.trace_add("write", lambda *a: self._settings_changed())
-
-        self.cards_frame = tk.Frame(body, bg=C["bg"])
+        self.cards_frame = tk.Frame(ops, bg=C["bg"])
         self.cards_frame.grid(row=0, column=1, sticky="nsew")
 
-        logbox = tk.Frame(body, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
-        logbox.grid(row=1, column=1, sticky="ew", pady=(8, 0))
+        # one line with the latest event; warnings and errors keep their colour here, so they are not buried
+        tick = tk.Frame(ops, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        tick.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        tk.Label(tick, text="LATEST", bg=C["panel"], fg=C["dim"], font=f["tiny_b"]).pack(side="left", padx=(10, 8), pady=6)
+        self.ticker = tk.Label(tick, text="", bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w")
+        self.ticker.pack(side="left", fill="x", expand=True)
+        tk.Label(tick, text="full log in the Log tab", bg=C["panel"], fg=C["dim"], font=f["tiny"]
+                 ).pack(side="right", padx=10)
+
+    def _build_log_tab(self, tab):
+        f = self.fonts
+        bar = tk.Frame(tab, bg=C["bg"])
+        bar.pack(fill="x", pady=(8, 6))
+        self.save_btn = Btn(bar, "💾 Save log now", self.save_log, "ghost", f["norm"])
+        self.save_btn.pack(side="left")
+        Btn(bar, "Clear", self._clear_log, "ghost", f["norm"]).pack(side="left", padx=8)
+        logbox = tk.Frame(tab, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        logbox.pack(fill="both", expand=True)
         self.log = tk.Text(logbox, height=5, bg=C["panel"], fg=C["text"], font=f["small"], bd=0, highlightthickness=0,
                            state="disabled", wrap="none", padx=8, pady=6)
         lsb = ttk.Scrollbar(logbox, command=self.log.yview)
@@ -1591,6 +1599,536 @@ class App(tk.Tk):
         self.log.pack(fill="both", expand=True)
         for tag, col in (("info", C["muted"]), ("warn", C["warn"]), ("error", C["bad"]), ("ok", C["good"]), ("time", C["dim"])):
             self.log.tag_configure(tag, foreground=col)
+
+    def _clear_log(self):
+        self.log.config(state="normal")
+        self.log.delete("1.0", "end")
+        self.log.config(state="disabled")
+
+    def _tab_changed(self, _e=None):
+        current = self.notebook.index("current")
+        if current == self._log_tab_index:
+            self._log_alerts = 0
+            self.notebook.tab(self._log_tab_index, text="Log")
+        if current == self._cal_tab_index:
+            self._cal_tab_shown()
+
+    def _build_settings_tab(self, tab):
+        f = self.fonts
+        tab.grid_columnconfigure(0, weight=1, uniform="s")
+        tab.grid_columnconfigure(1, weight=1, uniform="s")
+        left = tk.Frame(tab, bg=C["bg"])
+        right = tk.Frame(tab, bg=C["bg"])
+        left.grid(row=0, column=0, sticky="new", padx=(0, 6), pady=(8, 0))
+        right.grid(row=0, column=1, sticky="new", padx=(6, 0), pady=(8, 0))
+
+        # ---- run setup -------------------------------------------------------------------------------------
+        setup = self._panel(left, "Run setup", "Applies to the next Start (locked while a run is going).")
+        setup.pack(fill="x", pady=(0, 10))
+        grid = tk.Frame(setup, bg=C["panel"])
+        grid.pack(fill="x", padx=12, pady=(0, 10))
+
+        def lbl(text, r, c):
+            tk.Label(grid, text=text, bg=C["panel"], fg=C["muted"], font=f["small"]).grid(
+                row=r, column=c, sticky="w", padx=(0, 8), pady=3)
+        lbl("Crop", 0, 0)
+        self.crop_var = tk.StringVar(value="all")
+        self.crop_cb = ttk.Combobox(grid, textvariable=self.crop_var, values=["all", "cabbage", "lettuce", "mushroom"],
+                                    width=12, state="readonly")
+        self.crop_cb.grid(row=0, column=1, sticky="w", pady=3)
+        self.crop_cb.bind("<<ComboboxSelected>>", lambda e: self._fill_queue_preview())
+        lbl("Pods (0 = all)", 1, 0)
+        self.pods_var = tk.StringVar(value="0")
+        self.pods_sp = ttk.Spinbox(grid, from_=0, to=72, width=4, textvariable=self.pods_var,
+                                   command=self._fill_queue_preview)
+        self.pods_sp.grid(row=1, column=1, sticky="w", pady=3)
+        lbl("Pods on screen", 2, 0)
+        self.slots_var = tk.StringVar(value="2")
+        self.slots_sp = ttk.Spinbox(grid, from_=1, to=4, width=4, textvariable=self.slots_var, state="readonly",
+                                    command=self._build_cards)
+        self.slots_sp.grid(row=2, column=1, sticky="w", pady=3)
+        self.reset_var = tk.BooleanVar(value=False)
+        self.reset_cb = self._check(grid, "Reset history on the next run", self.reset_var)
+        self.reset_cb.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        # ---- display ---------------------------------------------------------------------------------------
+        disp = self._panel(left, "Display", "What the pod cards on the Operations tab show.")
+        disp.pack(fill="x", pady=(0, 10))
+        drow = tk.Frame(disp, bg=C["panel"])
+        drow.pack(fill="x", padx=12, pady=(0, 10))
+        tk.Label(drow, text="Scores", bg=C["panel"], fg=C["muted"], font=f["small"]).grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.detail_var = tk.StringVar(value="Headline result only")
+        self.detail_cb = ttk.Combobox(drow, textvariable=self.detail_var, state="readonly", width=24,
+                                      values=["Headline result only", "Full scores (every class)"])
+        self.detail_cb.grid(row=0, column=1, sticky="w")
+        self.detail_cb.bind("<<ComboboxSelected>>", lambda e: self._apply_detail())
+        self.boxes_var = tk.BooleanVar(value=True)
+        self.labels_var = tk.BooleanVar(value=True)
+        self._check(drow, "Detection boxes on the images", self.boxes_var, self._apply_overlay).grid(
+            row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self._check(drow, "Box labels", self.labels_var, self._apply_overlay).grid(
+            row=2, column=0, columnspan=2, sticky="w")
+
+        # ---- simulation (PyBullet) -------------------------------------------------------------------------
+        sim = self._panel(left, "Simulation (PyBullet)", "Applies to the next Start.")
+        sim.pack(fill="x")
+        srow = tk.Frame(sim, bg=C["panel"])
+        srow.pack(fill="x", padx=12, pady=(0, 10))
+        self.pybullet_check = self._check(srow, "Run the PyBullet robots", self.pybullet_var)
+        self.pybullet_check.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        tk.Label(srow, text="Pod localization", bg=C["panel"], fg=C["muted"], font=f["small"]).grid(
+            row=1, column=0, sticky="w", padx=(0, 8), pady=3)
+        self.loc_var = tk.StringVar(value="ArUco tags (vision)")
+        ttk.Combobox(srow, textvariable=self.loc_var, state="readonly", width=26,
+                     values=list(self._SIM_LOC)).grid(row=1, column=1, sticky="w", pady=3)
+        self.rig_var = tk.BooleanVar(value=sim_options.OPTIONS["stereo_rig"])
+        self._check(srow, "Use the two-camera head rig", self.rig_var).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        tk.Label(srow, text="The rig needs a saved camera-pair calibration. It is made on the Calibration tab "
+                            "(automatically at Start if none exists).", bg=C["panel"], fg=C["dim"], font=f["tiny"],
+                 anchor="w", justify="left", wraplength=420).grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        # ---- live tuning -----------------------------------------------------------------------------------
+        tune = self._panel(right, "Live tuning", "Sensitivity applies to the next scan / re-scan. Thresholds "
+                                                 "re-evaluate the decisions on screen straight away.")
+        tune.pack(fill="x", pady=(0, 10))
+        self.var_delay = tk.DoubleVar(value=self.settings.delay_ms)
+        self.var_conf = tk.DoubleVar(value=self.settings.conf_threshold)
+        self.var_dis = tk.DoubleVar(value=self.settings.disease_threshold)
+        self.var_gro = tk.DoubleVar(value=self.settings.growth_threshold)
+        self._slider(tune, "Delay between images", self.var_delay, 0, 3000, "{:.0f} ms")
+        self._slider(tune, "Model sensitivity (box floor)", self.var_conf, 0.10, 0.80, "{:.2f}")
+        self._slider(tune, "Disease action threshold", self.var_dis, 0.10, 0.95, "{:.2f}")
+        self._slider(tune, "Growth trust threshold", self.var_gro, 0.10, 0.95, "{:.2f}")
+        trow = tk.Frame(tune, bg=C["panel"])
+        trow.pack(fill="x", padx=12, pady=(8, 10))
+        Btn(trow, "Reset to defaults", self._defaults, "ghost", f["small_b"], 9, 3).pack(side="left")
+        for v in (self.var_delay, self.var_conf, self.var_dis, self.var_gro):
+            v.trace_add("write", lambda *a: self._settings_changed())
+
+        # ---- AI planner ------------------------------------------------------------------------------------
+        plan = self._panel(right, "AI planner (optional)")
+        plan.pack(fill="x")
+        self.planner_var = tk.StringVar(value="Rules only")
+        self.planner_cb = ttk.Combobox(plan, textvariable=self.planner_var, state="readonly",
+                                       values=["Rules only", "Scripted demo (not an LLM)", "Local LLM via Ollama"])
+        self.planner_cb.pack(fill="x", padx=12)
+        self.planner_cb.bind("<<ComboboxSelected>>", lambda e: self._planner_changed())
+        mrow = tk.Frame(plan, bg=C["panel"])
+        mrow.pack(fill="x", padx=12, pady=(6, 0))
+        self.model_var = tk.StringVar(value="llama3.2:3b")
+        self.model_entry = tk.Entry(mrow, textvariable=self.model_var, width=16, bg=C["panel2"], fg=C["text"],
+                                    insertbackground=C["text"], relief="flat", font=f["small"])
+        self.model_entry.pack(side="left", fill="x", expand=True)
+        self.model_entry.bind("<Return>", lambda e: self._planner_changed())
+        self.model_entry.bind("<FocusOut>", lambda e: self._planner_changed())
+        self.pimg_var = tk.BooleanVar(value=False)
+        self._check(mrow, "send photo", self.pimg_var, self._planner_changed).pack(side="left", padx=(8, 0))
+        self.planner_note = tk.Label(plan, text="Rule table decides. An AI planner can only ask for a better look.",
+                                     bg=C["panel"], fg=C["dim"], font=f["tiny"], justify="left", anchor="w",
+                                     wraplength=420)
+        self.planner_note.pack(fill="x", padx=12, pady=(4, 10))
+        self.model_entry.config(state="disabled")
+
+    # --- simulation options (shared with the robot through pybullet_sim.sim_options) -------------------------
+    _SIM_LOC = {"ArUco tags (vision)": "vision", "Simulator mask (reference)": "simulator_mask"}
+
+    def _apply_sim_settings(self):
+        sim_options.OPTIONS["localization"] = self._SIM_LOC[self.loc_var.get()]
+        sim_options.OPTIONS["stereo_rig"] = bool(self.rig_var.get())
+
+    # =====================================================================
+    # CALIBRATION TAB: the two-camera rig, live
+    # =====================================================================
+    # Two data sources feed this tab, both read by one polling loop (never blocking the window):
+    #   * the calibration process (python -m pybullet_sim.rig_calibration --stream): JSON events, one per board pose;
+    #   * the robot, through pybullet_sim.rig_feed: one sample per pod it localizes (both cameras' frames, the marker
+    #     each found, each camera's own estimate, the stereo triangulation, the fused estimate vs the true position).
+    A_COLOR, B_COLOR = "#4c8dff", "#3fe0a8"
+    CHART_W, CHART_H = 312, 118
+
+    def _build_calibration_tab(self, tab):
+        f = self.fonts
+        tab.grid_columnconfigure(1, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+        head = tk.Frame(tab, bg=C["bg"])
+        head.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(8, 6))
+        self.cal_chip = Chip(head, f["small_b"])
+        self.cal_chip.pack(side="left")
+        self.cal_btn = Btn(head, "⟳  Calibrate camera pair", self.calibrate_rig, "primary", f["norm_b"])
+        self.cal_btn.pack(side="left", padx=(12, 6))
+        Btn(head, "Reload saved", self._cal_reload, "ghost", f["norm"]).pack(side="left")
+        self.cal_bar = tk.Canvas(head, width=240, height=10, bg=C["panel2"], highlightthickness=0)
+        self.cal_bar.pack(side="left", padx=(18, 8))
+        self.cal_status = tk.Label(head, text="", bg=C["bg"], fg=C["muted"], font=f["small"], anchor="w")
+        self.cal_status.pack(side="left")
+
+        # -- live frames: A over B --------------------------------------------------------------------
+        left = tk.Frame(tab, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        left.grid(row=1, column=0, sticky="ns", padx=(0, 8))
+        tk.Label(left, text="LIVE FRAMES", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=10, pady=(8, 2))
+        self.cal_canvas, self.cal_caption, self._cal_photo = {}, {}, {}
+        for key, title, color in (("a", "CAMERA A  ·  left", self.A_COLOR), ("b", "CAMERA B  ·  right", self.B_COLOR)):
+            tk.Label(left, text=title, bg=C["panel"], fg=color, font=f["tiny_b"], anchor="w").pack(fill="x", padx=10)
+            cv = tk.Canvas(left, width=RIG_W, height=RIG_H, bg="#0b0e13", highlightthickness=1,
+                           highlightbackground=C["line"])
+            cv.pack(padx=10, pady=(0, 2))
+            cap = tk.Label(left, text="no frame yet", bg=C["panel"], fg=C["dim"], font=f["tiny"], anchor="w")
+            cap.pack(fill="x", padx=10, pady=(0, 8))
+            self.cal_canvas[key], self.cal_caption[key] = cv, cap
+
+        # -- the calculations, as they happen ----------------------------------------------------------
+        mid = tk.Frame(tab, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        mid.grid(row=1, column=1, sticky="nsew", padx=(0, 8))
+        tk.Label(mid, text="CALCULATIONS  ·  live", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=10, pady=(8, 2))
+        wrap = tk.Frame(mid, bg=C["panel"])
+        wrap.pack(fill="both", expand=True)
+        self.cal_text = tk.Text(wrap, bg=C["panel"], fg=C["text"], font=f["mono"], bd=0, highlightthickness=0,
+                                wrap="none", state="disabled", padx=10, pady=4)
+        sb = ttk.Scrollbar(wrap, command=self.cal_text.yview)
+        self.cal_text.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self.cal_text.pack(fill="both", expand=True)
+        for tag, col in (("head", C["text"]), ("a", self.A_COLOR), ("b", self.B_COLOR), ("good", C["good"]),
+                         ("warn", C["warn"]), ("bad", C["bad"]), ("dim", C["dim"]), ("num", "#9ec1ff")):
+            self.cal_text.tag_configure(tag, foreground=col)
+        self.cal_text.tag_configure("head", font=tkfont.Font(family=self.fonts["mono"].actual("family"), size=9,
+                                                             weight="bold"))
+
+        # -- the rig's parameters and two small charts --------------------------------------------------
+        right = tk.Frame(tab, bg=C["bg"], width=336)
+        right.grid(row=1, column=2, sticky="ns")
+        right.grid_propagate(False)
+        par = tk.Frame(right, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        par.pack(fill="x")
+        tk.Label(par, text="CAMERA PAIR  ·  calibrated parameters", bg=C["panel"], fg=C["muted"], font=f["tiny_b"],
+                 anchor="w").pack(fill="x", padx=10, pady=(8, 4))
+        grid = tk.Frame(par, bg=C["panel"])
+        grid.pack(fill="x", padx=10, pady=(0, 8))
+        self.cal_vars = {}
+        rows = (("when", "Calibrated"), ("pairs", "Board views used"), ("rms", "Reprojection error"),
+                ("baseline", "Baseline B ↔ A"), ("rot", "Rotation B vs A"), ("trans", "Translation B vs A"),
+                ("ka", "Camera A  fx · fy"), ("kac", "Camera A  cx · cy"), ("kb", "Camera B  fx · fy"),
+                ("kbc", "Camera B  cx · cy"), ("truth", "Check vs true rig"))
+        for r, (key, label) in enumerate(rows):
+            tk.Label(grid, text=label, bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w").grid(
+                row=r, column=0, sticky="w", pady=1)
+            var = tk.StringVar(value="–")
+            tk.Label(grid, textvariable=var, bg=C["panel"], fg=C["text"], font=f["small_b"], anchor="e").grid(
+                row=r, column=1, sticky="e", padx=(10, 0), pady=1)
+            self.cal_vars[key] = var
+        grid.grid_columnconfigure(1, weight=1)
+        self.cal_chart_base = tk.Canvas(right, width=self.CHART_W, height=self.CHART_H, bg=C["panel"],
+                                        highlightthickness=1, highlightbackground=C["line"])
+        self.cal_chart_base.pack(fill="x", pady=(10, 0))
+        self.cal_chart_err = tk.Canvas(right, width=self.CHART_W, height=self.CHART_H, bg=C["panel"],
+                                       highlightthickness=1, highlightbackground=C["line"])
+        self.cal_chart_err.pack(fill="x", pady=(10, 0))
+        self._cal_init()
+
+    def _cal_init(self):
+        self._cal_proc = None
+        self._cal_q = queue.Queue()
+        self._cal_then = None
+        self._cal_tail = []
+        self._cal_baselines, self._cal_designed, self._cal_n = [], 40.0, 20
+        self._cal_errors = []
+        self._cal_views, self._cal_view_i, self._cal_cycle_job = [], 0, None
+        self._cal_mode = "idle"
+        self._cal_chart(self.cal_chart_base, "Baseline estimate (mm) as views are added", [], None)
+        self._cal_chart(self.cal_chart_err, "Pod localization error (mm), per pod", [], None)
+        self._cal_write("Camera-pair calibration, live. Everything the two cameras on a head compute shows up here: "
+                        "the calibration from board views, then the pod localization during a run.\n", "dim")
+        self._cal_reload()
+        self.after(150, self._cal_poll)
+
+    # -- text / charts / frames ----------------------------------------------------------------------------
+    def _cal_write(self, text, tag="", *more):
+        t = self.cal_text
+        t.config(state="normal")
+        t.insert("end", text, tag)
+        for i in range(0, len(more) - 1, 2):
+            t.insert("end", more[i], more[i + 1])
+        if int(t.index("end-1c").split(".")[0]) > 700:
+            t.delete("1.0", "200.0")
+        t.see("end")
+        t.config(state="disabled")
+
+    def _cal_chart(self, canvas, title, values, ref=None):
+        canvas.delete("all")
+        w, h = self.CHART_W, self.CHART_H
+        canvas.create_text(10, 11, text=title, anchor="w", fill=C["muted"], font=self.fonts["tiny_b"])
+        if not values:
+            canvas.create_text(w / 2, h / 2 + 6, text="no data yet", fill=C["dim"], font=self.fonts["tiny"])
+            return
+        pool = list(values) + ([ref] if ref is not None else [])
+        lo, hi = min(pool), max(pool)
+        pad = (hi - lo) * 0.2 or max(abs(hi) * 0.05, 0.05)
+        lo, hi = lo - pad, hi + pad
+        x0, x1, y0, y1 = 44, w - 10, 26, h - 14
+        X = lambda i: x0 + (x1 - x0) * (i / max(1, len(values) - 1))
+        Y = lambda v: y1 - (y1 - y0) * ((v - lo) / (hi - lo))
+        canvas.create_line(x0, y0, x0, y1, fill=C["line"])
+        canvas.create_line(x0, y1, x1, y1, fill=C["line"])
+        canvas.create_text(x0 - 4, y0, text=f"{hi:.2f}", anchor="e", fill=C["dim"], font=self.fonts["tiny"])
+        canvas.create_text(x0 - 4, y1, text=f"{lo:.2f}", anchor="e", fill=C["dim"], font=self.fonts["tiny"])
+        if ref is not None:
+            canvas.create_line(x0, Y(ref), x1, Y(ref), fill=C["good"], dash=(3, 3))
+            canvas.create_text(x1, Y(ref) - 7, text=f"designed {ref:.1f}", anchor="e", fill=C["good"],
+                               font=self.fonts["tiny"])
+        pts = [c for i, v in enumerate(values) for c in (X(i), Y(v))]
+        if len(pts) >= 4:
+            canvas.create_line(*pts, fill=self.A_COLOR, width=2)
+        for i, v in enumerate(values):
+            canvas.create_oval(X(i) - 2, Y(v) - 2, X(i) + 2, Y(v) + 2, fill=self.A_COLOR, outline="")
+        canvas.create_text(x1, h - 5, text=f"last {values[-1]:.2f}", anchor="e", fill=C["text"], font=self.fonts["tiny"])
+
+    def _cal_show_frame(self, key, bgr, caption, color=None):
+        if bgr is None:
+            return
+        if bgr.shape[1] != RIG_W or bgr.shape[0] != RIG_H:
+            bgr = cv2.resize(bgr, (RIG_W, RIG_H), interpolation=cv2.INTER_AREA)
+        photo = to_photo(bgr)
+        self._cal_photo[key] = photo                      # keep a reference or Tk drops the image
+        cv = self.cal_canvas[key]
+        cv.delete("all")
+        cv.create_image(0, 0, image=photo, anchor="nw")
+        self.cal_caption[key].config(text=caption, fg=color or C["muted"])
+
+    def _cal_set_chip(self, state):
+        text, col = {"none": ("NOT CALIBRATED", C["warn"]), "busy": ("CALIBRATING", "#2f6fe0"),
+                     "ok": ("CALIBRATED", C["good"]), "failed": ("CALIBRATION FAILED", C["bad"])}[state]
+        self.cal_chip.set(text, col, "#111" if state == "none" else "white")
+
+    def _cal_bar_set(self, frac):
+        self.cal_bar.delete("all")
+        self.cal_bar.create_rectangle(0, 0, 240 * max(0.0, min(1.0, frac)), 10, fill=self.A_COLOR, outline="")
+
+    def _cal_show_rig(self, rig, source=""):
+        v, ka, kb = self.cal_vars, rig["K_a"], rig["K_b"]
+        v["when"].set(rig.get("calibrated_at", source or "saved"))
+        v["pairs"].set(f"{rig['frames_used']}" + (f" of {rig['frames_total']}" if rig.get("frames_total") else ""))
+        v["rms"].set(f"{rig['rms_px']:.3f} px")
+        v["baseline"].set(f"{rig['baseline_m'] * 1000:.2f} mm  (designed {rig.get('designed_baseline_m', 0) * 1000:.0f})")
+        rot = float(np.degrees(np.linalg.norm(cv2.Rodrigues(np.array(rig["R_ba"]))[0])))
+        v["rot"].set(f"{rot:.2f}°")
+        v["trans"].set("  ".join(f"{t * 1000:+.1f}" for t in rig["T_ba"]) + " mm")
+        v["ka"].set(f"{ka[0][0]:.1f} · {ka[1][1]:.1f}")
+        v["kac"].set(f"{ka[0][2]:.1f} · {ka[1][2]:.1f}")
+        v["kb"].set(f"{kb[0][0]:.1f} · {kb[1][1]:.1f}")
+        v["kbc"].set(f"{kb[0][2]:.1f} · {kb[1][2]:.1f}")
+        t = rig.get("truth_comparison")
+        v["truth"].set("–" if not t else f"{t['rotation_error_deg']:.2f}° · {t['translation_error_mm']:.2f} mm")
+        self._cal_designed = rig.get("designed_baseline_m", 0.04) * 1000
+
+    def _cal_reload(self):
+        rig, why = stereo_rig.load_saved(HERE, (RIG_W, RIG_H))
+        if rig is None:
+            for var in self.cal_vars.values():
+                var.set("–")
+            self._cal_set_chip("none")
+            self.cal_status.config(text={"missing": "no saved calibration yet", "stale": "saved calibration is for a "
+                                         "different rig design; calibrate again"}.get(why, f"saved calibration: {why}"))
+        else:
+            self._cal_show_rig(rig)
+            self._cal_set_chip("ok")
+            self.cal_status.config(text="saved calibration loaded")
+        return rig
+
+    # -- the calibration process -----------------------------------------------------------------------------
+    def calibrate_rig(self, then=None):
+        """Run the camera-pair calibration in its own process and stream it into this tab. `then` is called once
+        it has finished (successfully or not)."""
+        if self._cal_proc is not None:
+            return
+        self._cal_then = then if callable(then) else None
+        self._cal_tail = []
+        try:
+            proc = subprocess.Popen([sys.executable, "-m", "pybullet_sim.rig_calibration", "--stream"], cwd=HERE,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        except Exception as exc:                            # noqa: BLE001
+            self._cal_event({"event": "error", "message": f"could not start the calibration: {exc}"})
+            return
+        self._cal_proc = proc
+        self.cal_btn.set_enabled(False)
+        self._cal_mode = "calibration"
+
+        def reader():
+            for line in proc.stdout:
+                self._cal_q.put(("line", line))
+            self._cal_q.put(("exit", proc.wait()))
+        threading.Thread(target=reader, daemon=True, name="rig-calibration-reader").start()
+
+    def _cal_event(self, ev):
+        kind = ev.get("event")
+        if kind == "start":
+            self._cal_baselines, self._cal_n = [], int(ev["poses"])
+            self._cal_designed = float(ev["designed_baseline_mm"])
+            self._cal_set_chip("busy")
+            self._cal_bar_set(0)
+            self.cal_status.config(text="starting…")
+            b = ev["board"]
+            self._cal_write(f"\n══ camera-pair calibration ══════════════════════════════════════\n", "head")
+            self._cal_write(f"chessboard {b['cols']}×{b['rows']} inner corners, {b['square_mm']:.0f} mm squares; "
+                            f"{ev['poses']} board poses, both cameras shoot each one at the same instant.\n", "dim")
+            self._cal_chart(self.cal_chart_base, "Baseline estimate (mm) as views are added", [], None)
+        elif kind == "frame":
+            i, n = ev["i"], ev["n"]
+            self._cal_bar_set(i / n)
+            self.cal_status.config(text=f"board pose {i}/{n}")
+            ok = ev["pair_ok"]
+            self._cal_write(f"pose {i:>2}/{n}  ", "head")
+            self._cal_write("A ", "a", f"{'✓' if ev['corners_a'] else '✗'}  ", "good" if ev["corners_a"] else "bad")
+            self._cal_write("B ", "b", f"{'✓' if ev['corners_b'] else '✗'}  ", "good" if ev["corners_b"] else "bad")
+            self._cal_write(f"corners found in both: {'yes' if ok else 'no'}   usable pairs: {ev['pairs']}\n",
+                            "good" if ok else "warn")
+            est = ev.get("estimate")
+            if est:
+                self._cal_baselines.append(est["baseline_mm"])
+                self._cal_write(f"   solve with {est['pairs']} pairs: ", "dim")
+                self._cal_write(f"reproj {est['rms_px']:.3f} px · baseline {est['baseline_mm']:.2f} mm · "
+                                f"rot {est['rot_deg']:.2f}°\n", "num")
+                self._cal_chart(self.cal_chart_base, "Baseline estimate (mm) as views are added",
+                                self._cal_baselines, self._cal_designed)
+            for key, path, corners, color in (("a", ev["path_a"], ev["corners_a"], self.A_COLOR),
+                                              ("b", ev["path_b"], ev["corners_b"], self.B_COLOR)):
+                img = cv2.imread(path)
+                if img is not None and corners:
+                    cv2.drawChessboardCorners(img, (stereo_rig.BOARD_COLS, stereo_rig.BOARD_ROWS),
+                                              np.asarray(corners, np.float32).reshape(-1, 1, 2), True)
+                self._cal_show_frame(key, img, f"board pose {i}/{n} · " + (f"{len(corners)} corners" if corners
+                                                                          else "board not fully visible"), color)
+        elif kind == "done":
+            rig = ev["rig"]
+            self._cal_show_rig(rig)
+            self._cal_set_chip("ok")
+            self._cal_bar_set(1)
+            t = rig["truth_comparison"]
+            self.cal_status.config(text="calibrated")
+            self._cal_write("── result ───────────────────────────────────────────────────────\n", "head")
+            self._cal_write(f"cv2.calibrateMultiviewExtended on {rig['frames_used']} board views\n", "dim")
+            self._cal_write(f"reprojection error   {rig['rms_px']:.3f} px\n"
+                            f"baseline B↔A         {rig['baseline_m'] * 1000:.2f} mm  (true {self._cal_designed:.0f} mm)\n"
+                            f"rotation error       {t['rotation_error_deg']:.3f}°   translation error "
+                            f"{t['translation_error_mm']:.2f} mm\n", "good")
+            self._log_line(f"camera pair calibrated: {rig['rms_px']:.2f} px reprojection, baseline "
+                           f"{rig['baseline_m'] * 1000:.1f} mm", "ok")
+            self._cal_finish()
+        elif kind == "error":
+            self._cal_set_chip("failed")
+            msg = ev.get("message", "unknown error")
+            self.cal_status.config(text="failed")
+            self._cal_write(f"calibration failed: {msg}\n", "bad")
+            self._log_line(f"camera-pair calibration failed ({msg}); the robots will use one camera per head", "warn")
+            self._cal_finish()
+
+    def _cal_finish(self):
+        self._cal_proc = None
+        self._cal_mode = "idle"
+        self.cal_btn.set_enabled(True)
+        then, self._cal_then = self._cal_then, None
+        if then:
+            then()
+
+    # -- one polling loop for both sources (always reschedules, even after an error) ------------------------------
+    def _cal_poll(self):
+        try:
+            for _ in range(40):
+                try:
+                    kind, payload = self._cal_q.get_nowait()
+                except queue.Empty:
+                    break
+                if kind == "line":
+                    try:
+                        self._cal_event(json.loads(payload))
+                    except ValueError:
+                        self._cal_tail = (self._cal_tail + [payload.strip()])[-6:]
+                elif kind == "exit" and self._cal_proc is not None:
+                    tail = " | ".join(self._cal_tail) or f"exit code {payload}"
+                    self._cal_event({"event": "error", "message": "the calibration process ended early: " + tail})
+            for sample in rig_feed.drain():
+                self._cal_sample(sample)
+        except Exception:                                   # noqa: BLE001
+            self._loop_error("calibration tab")
+        finally:
+            self.after(150, self._cal_poll)
+
+    # -- pod localization samples from the robot ---------------------------------------------------------------
+    def _cal_sample(self, s):
+        fmt = lambda c: "–" if c is None else "(" + ", ".join(f"{v:.4f}" for v in c) + ")"
+        self._cal_write(f"\n── {s['pod_id']} · {s['side']} head · tag #{s['marker_id']} ", "head",
+                        "─" * 28 + "\n", "dim")
+        for v in s["views"]:
+            for cam, tag, key in (("A", "a", ""), ("B", "b", "_b")):
+                ok = v.get("corners" + ("_a" if key == "" else "_b")) is not None
+                rp = v.get("reprojection_px" + ("_a" if key == "" else "_b"))
+                self._cal_write(f"view {v['view_index'] + 1}  " if cam == "A" else "        ", "dim")
+                self._cal_write(f"{cam} ", tag, f"{'✓ tag found' if ok else '✗ no tag  '}  ", "good" if ok else "bad")
+                if ok and rp is not None:
+                    c = v.get("center_a") if cam == "A" else v.get("center_b")
+                    self._cal_write(f"reproj {rp:.2f} px   pod centre {fmt(c)}\n", "num")
+                else:
+                    self._cal_write("\n", "")
+            if v.get("stereo_center") is not None:
+                self._cal_write(f"        stereo → {fmt(v['stereo_center'])}"
+                                + (f"   Δ vs PnP {v['stereo_vs_pnp_mm']:.1f} mm\n"
+                                   if v.get("stereo_vs_pnp_mm") is not None else "\n"), "dim")
+        self._cal_write(f"fused (median of {s.get('camera_measurements') or 0} camera estimates)  {fmt(s['fused_center'])} m\n", "head")
+        self._cal_write(f"true position (simulator)              {fmt(s['truth_center'])} m\n", "dim")
+        if s["error_mm"] is not None:
+            good = s["valid"] and not s["fallback_used"]
+            self._cal_write(f"error {s['error_mm']:.2f} mm   ", "good" if good else "warn",
+                            ("valid" if s["valid"] else "NOT valid") + ("  (fell back to the simulator mask)\n"
+                                                                         if s["fallback_used"] else "\n"),
+                            "good" if good else "warn")
+            self._cal_errors = (self._cal_errors + [s["error_mm"]])[-60:]
+            self._cal_chart(self.cal_chart_err, "Pod localization error (mm), per pod", self._cal_errors, None)
+        if s.get("rig"):
+            self.cal_status.config(text=f"using the calibrated pair · {len(self._cal_errors)} pods so far")
+        else:
+            self.cal_status.config(text="no saved calibration: running with one camera per head")
+        # keep the frames; cycle through the three views while this tab is open
+        self._cal_views = []
+        for v in s["views"]:
+            for key, fr, corners, color in (("a", v["frame_a"], v.get("corners_a"), self.A_COLOR),
+                                            ("b", v["frame_b"], v.get("corners_b"), self.B_COLOR)):
+                self._cal_views.append((v["view_index"], key, fr, corners, color, s["pod_id"]))
+        self._cal_view_i = 0
+        if self.notebook.index("current") == self._cal_tab_index and self._cal_mode != "calibration":
+            self._cal_cycle(restart=True)
+
+    def _cal_tab_shown(self):
+        if self._cal_views and self._cal_mode != "calibration":
+            self._cal_cycle(restart=True)
+
+    def _cal_cycle(self, restart=False):
+        """Show the three views of the latest pod one after another (A over B), only while this tab is open."""
+        if self._cal_cycle_job is not None and not restart:
+            self._cal_cycle_job = None
+        if restart and self._cal_cycle_job is not None:
+            self.after_cancel(self._cal_cycle_job)
+            self._cal_cycle_job = None
+        if not self._cal_views or self.notebook.index("current") != self._cal_tab_index or self._cal_mode == "calibration":
+            return
+        nviews = len(self._cal_views) // 2
+        k = self._cal_view_i % max(1, nviews)
+        for view_index, key, frame, corners, color, pod_id in self._cal_views[2 * k: 2 * k + 2]:
+            img = None if frame is None else frame.copy()
+            if img is not None and corners:
+                pts = np.asarray(corners, np.int32).reshape(-1, 1, 2)
+                cv2.polylines(img, [pts], True, (0, 255, 120), 2, cv2.LINE_AA)
+                cv2.putText(img, "tag", tuple(pts[0, 0] + [4, -6]), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 120), 1,
+                            cv2.LINE_AA)
+            self._cal_show_frame(key, img, f"{pod_id} · view {view_index + 1}" + ("" if corners else " · tag not found"), color)
+        self._cal_view_i += 1
+        self._cal_cycle_job = self.after(900, self._cal_cycle)
+
+    def _apply_detail(self):
+        full = self.detail_var.get().startswith("Full")
+        for c in self.cards:
+            c.set_detail(full)
 
     def _slider(self, parent, text, var, lo, hi, fmt):
         f = self.fonts
@@ -1621,6 +2159,7 @@ class App(tk.Tk):
             card = PodCard(self.cards_frame, self, i, mirrored=(i % cols == 1))
             card.grid(row=i // cols, column=i % cols, sticky="nsew", padx=5, pady=5)
             self.cards.append(card)
+        self._apply_detail()
         self._apply_overlay()
 
     def _apply_overlay(self):
@@ -1751,7 +2290,18 @@ class App(tk.Tk):
             return
         self.after(100, lambda: self._await_old_engine(old, deadline))
 
-    def _do_start(self):
+    def _do_start(self, skip_calibration=False):
+        self._apply_sim_settings()
+        if (not skip_calibration and self.pybullet_var.get() and sim_options.OPTIONS["stereo_rig"]
+                and self._cal_proc is None and importlib.util.find_spec("pybullet") is not None
+                and stereo_rig.load_saved(HERE, (RIG_W, RIG_H))[0] is None):
+            # The robot only ever LOADS a calibration. None is saved yet, so make one now, visibly (Calibration
+            # tab), and start the run as soon as it is done.
+            self.start_btn.set_enabled(False)
+            self.status("calibrating the camera pairs first (watch it on the Calibration tab)…")
+            self._log_line("no saved camera-pair calibration: calibrating before the run", "info")
+            self.calibrate_rig(then=lambda: self._do_start(skip_calibration=True))
+            return
         pods = self._selected_pods()
         if not pods:
             self._set_state(self.state)
@@ -1770,6 +2320,7 @@ class App(tk.Tk):
         self.engine = FarmEngine(pods, n_slots=n, settings=self.settings, reset_history=self.reset_var.get())
         self._pybullet_bridge = None
         if self.pybullet_var.get():
+            self._apply_sim_settings()
             self._attach_pybullet(self.engine)
         self.reset_var.set(False)
         self.tree.delete(*self.tree.get_children())
@@ -1906,6 +2457,11 @@ class App(tk.Tk):
         self.log.insert("end", text + "\n", level)
         self.log.see("end")
         self.log.config(state="disabled")
+        shade = {"warn": C["warn"], "error": C["bad"], "ok": C["good"]}.get(level, C["muted"])
+        self.ticker.config(text=f"{t or time.strftime('%H:%M:%S')}   {text}", fg=shade)
+        if level in ("warn", "error") and self.notebook.index("current") != self._log_tab_index:
+            self._log_alerts += 1
+            self.notebook.tab(self._log_tab_index, text=f"Log  ⚠ {self._log_alerts}")
 
     def _loop_error(self, where):
         """Report an exception from a UI loop without ever letting it stop that loop. (Both periodic loops used to

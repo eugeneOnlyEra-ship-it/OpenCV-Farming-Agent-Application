@@ -1,0 +1,4 @@
+/run/media/ugeonlyera/Drive2/PROJECTS/LM/Ofa pybind11/OpenCV-Farming-Agent-Application/cpp/build/CMakeFiles/pod_capture.dir
+/run/media/ugeonlyera/Drive2/PROJECTS/LM/Ofa pybind11/OpenCV-Farming-Agent-Application/cpp/build/CMakeFiles/Testing.dir
+/run/media/ugeonlyera/Drive2/PROJECTS/LM/Ofa pybind11/OpenCV-Farming-Agent-Application/cpp/build/CMakeFiles/edit_cache.dir
+/run/media/ugeonlyera/Drive2/PROJECTS/LM/Ofa pybind11/OpenCV-Farming-Agent-Application/cpp/build/CMakeFiles/rebuild_cache.dir

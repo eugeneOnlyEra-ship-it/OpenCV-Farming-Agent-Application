@@ -1,34 +1,38 @@
 {
  "R1-L-F1": {
-  "age": 11,
+  "age": 18,
   "cycles": 0
  },
  "R1-L-F2": {
-  "age": 7,
-  "cycles": 1
+  "age": 9,
+  "cycles": 4
  },
  "R1-L-F3": {
-  "age": 7,
-  "cycles": 1
+  "age": 16,
+  "cycles": 3
  },
  "R1-L-F4": {
-  "age": 13,
-  "cycles": 0
+  "age": 15,
+  "cycles": 2
  },
  "R1-M-F1": {
   "age": 8,
-  "cycles": 0
+  "cycles": 2
  },
  "R1-M-F2": {
   "age": 12,
-  "cycles": 0
- },
- "R1-M-F3": {
-  "age": 2,
   "cycles": 1
  },
+ "R1-M-F3": {
+  "age": 4,
+  "cycles": 2
+ },
  "R1-M-F4": {
-  "age": 7,
+  "age": 12,
+  "cycles": 0
+ },
+ "R1-R-F1": {
+  "age": 3,
   "cycles": 0
  }
 }

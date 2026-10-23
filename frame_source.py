@@ -32,6 +32,8 @@ import os
 import cv2
 import numpy as np
 
+from capture_io import load_image, save_image      # C++ pod_capture when built, else cv2
+
 
 def _union_box(targets, w, h, margin=0.35):
     xs, ys, xe, ye = [], [], [], []
@@ -54,7 +56,7 @@ class SimulatedCamera:
     simulated = True
 
     def capture(self, order, out_dir):
-        img = cv2.imread(order.evidence["image"])
+        img = load_image(order.evidence["image"])
         if img is None:
             raise FileNotFoundError(order.evidence["image"])
         h, w = img.shape[:2]
@@ -64,7 +66,7 @@ class SimulatedCamera:
             out, note = self._recapture(img, order, w, h)
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, f"{order.order_id}_after.jpg")
-        cv2.imwrite(path, out, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        save_image(out, path, 92)
         return {"path": path, "note": note, "simulated": True}
 
     # ----- strategies ---------------------------------------------------

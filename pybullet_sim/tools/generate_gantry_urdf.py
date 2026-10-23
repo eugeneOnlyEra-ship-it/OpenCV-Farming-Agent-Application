@@ -56,8 +56,9 @@ import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, ROOT)          # so `import gantry_robot` works from tools/
-import gantry_robot as gr         # noqa: E402  (shared dimensions live there)
+sys.path.insert(0, os.path.dirname(ROOT))   # the project root, so the `pybullet_sim` package is importable
+from pybullet_sim import gantry_robot as gr  # noqa: E402  (shared dimensions live there; it uses
+                                             #   package-relative imports, so it can't be imported bare)
 
 OUT_PATH = os.path.join(ROOT, "urdf", "gantry.urdf")
 
@@ -81,6 +82,9 @@ BAR_LEN = 2 * gr.BAR_HALF_LENGTH_M            # sleeve and both bars are this lo
 BAR_BEHIND = gr.BAR_CENTRE_BEHIND_M           # stack centre sits this far BEHIND the rod
 CARRIAGE = tuple(2 * h for h in gr.CARRIAGE_HALF_M)
 CAMERA_RADIUS = gr.CAMERA_HALF_X_M
+TWO_LENSES = gr.STEREO_RIG_ENABLED            # the head carries a stereo pair (stereo_rig.py) -> draw both lenses
+LENS_BASELINE = gr.stereo_rig.BASELINE_M      # lens-to-lens distance
+LENS_RADIUS = 0.010                           # lens glass on each 30 mm module
 TANK_RADIUS = gr.SERVICE_TANK_RADIUS_M
 TUBE_END = gr.SERVICE_NOZZLE_TUBE_END_M       # tank centre -> end of the nozzle tube, toward the pod
 PAD_FRONT = gr.APPLICATOR_PAD_FRONT_M
@@ -107,6 +111,10 @@ MATERIALS = {
     "guide_steel": (0.62, 0.64, 0.68, 1), "sleeve_dark": (0.30, 0.32, 0.36, 1),
     "bar_light": (0.80, 0.82, 0.86, 1), "carriage_orange": (0.92, 0.45, 0.10, 1),
     "camera_dark": (0.06, 0.06, 0.06, 1), "lens_glass": (0.20, 0.55, 0.95, 1),
+    "lens_glass_b": (0.20, 0.85, 0.70, 1),     # (single-lens head only)
+    "module_a": (0.15, 0.55, 1.00, 1),         # stereo pair: camera A's module (left): bright blue
+    "module_b": (0.10, 0.95, 0.65, 1),         # camera B's module (right): bright green-teal
+    "lens_dark": (0.02, 0.03, 0.08, 1),        # the lens glass on each module
     "tank_purple": (0.55, 0.20, 0.75, 1), "tank_band": (0.95, 0.95, 0.97, 1),
     "nozzle_grey": (0.35, 0.35, 0.38, 1), "pad_gold": (0.95, 0.75, 0.15, 1),
     "rod_steel": (0.78, 0.79, 0.82, 1),
@@ -343,9 +351,28 @@ def drive_box(side):
 def camera_head(toward):
     """Horizontal dark cylinder with a blue lens on the end that faces the pod.
     `toward` = -1 for the front side (pod is at -Y from the agent), +1 for back."""
-    return ("    <!-- CAMERA head: horizontal dark cylinder, blue lens facing the trough -->\n"
-            + visual(cylinder(CAMERA_RADIUS, 0.07), "camera_dark", (0, 0, TOOL_Z), (HALF_PI, 0, 0))
-            + visual(cylinder(0.02, 0.012), "lens_glass", (0, toward * 0.041, TOOL_Z), (HALF_PI, 0, 0)))
+    body = visual(cylinder(CAMERA_RADIUS, 0.07), "camera_dark", (0, 0, TOOL_Z), (HALF_PI, 0, 0))
+    if not TWO_LENSES:
+        return ("    <!-- CAMERA head: horizontal dark cylinder, blue lens facing the trough -->\n"
+                + body + visual(cylinder(0.02, 0.012), "lens_glass", (0, toward * 0.041, TOOL_Z), (HALF_PI, 0, 0)))
+    # Stereo pair. stereo_rig.rig_cameras puts camera A half a baseline to the LEFT of the head centre and B to
+    # the RIGHT, as seen looking at the pod; "right" is (toward, 0, 0) in world x, so A is at -toward*b/2.
+    # (A = blue, B = teal.)
+    xa, xb = -toward * LENS_BASELINE / 2, toward * LENS_BASELINE / 2
+    # Each camera is a bright 30 mm module on a dark bracket bar at the head's end, with a dark lens on its face:
+    # big enough to see in the GUI. Purely decorative (visual only): the collision volumes still come from
+    # CAMERA_HALF_X_M etc.; the modules stick out ~5 mm past the 60 mm head, which nothing else is close to.
+    bar_y = toward * 0.0405
+    mod_y = toward * (0.0465 + 0.009)
+    lens_y = toward * (0.0645 + 0.002)
+    return ("    <!-- CAMERA head: dark cylinder + bracket bar carrying a stereo pair of camera modules "
+            "(A blue = left, B green-teal = right) -->\n"
+            + body
+            + visual(box(0.084, 0.012, 0.016), "camera_dark", (0, bar_y, TOOL_Z))
+            + visual(box(0.030, 0.018, 0.030), "module_a", (xa, mod_y, TOOL_Z))
+            + visual(box(0.030, 0.018, 0.030), "module_b", (xb, mod_y, TOOL_Z))
+            + visual(cylinder(LENS_RADIUS, 0.004), "lens_dark", (xa, lens_y, TOOL_Z), (HALF_PI, 0, 0))
+            + visual(cylinder(LENS_RADIUS, 0.004), "lens_dark", (xb, lens_y, TOOL_Z), (HALF_PI, 0, 0)))
 
 
 def service_head(toward):

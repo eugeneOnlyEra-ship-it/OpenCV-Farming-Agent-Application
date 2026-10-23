@@ -1,0 +1,198 @@
+{
+  "order_id": "WO-0022",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_front",
+  "pod_id": "R1-M-F1",
+  "crop_type": "lettuce",
+  "trough_id": "R1-M-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-M-F \u00b7 front",
+  "priority": 3,
+  "title": "Verify treatment on R1-M-F1",
+  "rationale": "Treatment WO-0021 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 21,
+    "step": 2,
+    "n_steps": 4,
+    "image": "/run/media/ugeonlyera/Drive2/PROJECTS/OpenCV-Farming-Agent-Application/sample_images/traj_lettuce_R1-M-F1_stage_03__Head_formation.jpg",
+    "image_size": [
+      420,
+      420
+    ],
+    "growth_stage": "stage 03- Head formation",
+    "growth_confidence": 0.964,
+    "disease_flag": true,
+    "disease_name": "Powdery_mildew_on_lettuce",
+    "disease_confidence": 0.695,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "flag_for_treatment",
+    "reason": "Powdery_mildew_on_lettuce detected at 0.69 confidence",
+    "trend": "stage unchanged (stage 03- Head formation); disease flagged 3x in a row",
+    "cycle": {
+      "age": 10,
+      "harvest_age": 12,
+      "stage": "stage 03- Head formation",
+      "waiting_for_harvest": false,
+      "cycle": 1
+    },
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-20T03:10:03+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Powdery_mildew_on_lettuce",
+      "confidence": 0.695,
+      "box_norm": [
+        0.6049,
+        0.002,
+        0.3941,
+        0.2901
+      ],
+      "center_norm": [
+        0.8019,
+        0.1471
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R1-M-F and align with pod R1-M-F1.",
+      "params": {
+        "trough": "R1-M-F",
+        "pod": "R1-M-F1",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0021",
+  "not_before": "2026-10-20T03:10:17+00:00",
+  "created": "2026-10-20T03:10:09+00:00",
+  "updated": "2026-10-20T03:10:21+00:00",
+  "history": [
+    [
+      "2026-10-20T03:10:09+00:00",
+      "scheduled",
+      "due 2026-10-20T03:10:17+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-20T03:10:17+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-20T03:10:17+00:00",
+      "dispatched",
+      "sent to camera_front"
+    ],
+    [
+      "2026-10-20T03:10:18+00:00",
+      "in_progress",
+      "pybullet_gantry started"
+    ],
+    [
+      "2026-10-20T03:10:20+00:00",
+      "completed",
+      "executed by PyBullet gantry"
+    ],
+    [
+      "2026-10-20T03:10:21+00:00",
+      "completed",
+      "loop closed: Treatment verified: disease reading 0.69 -> 0.45 (1 -> 1 boxes), below the action threshold"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_worked",
+    "headline": "Treatment verified: disease reading 0.69 -> 0.45 (1 -> 1 boxes), below the action threshold",
+    "before": {
+      "growth_stage": "stage 03- Head formation",
+      "growth_confidence": 0.964,
+      "disease_flag": true,
+      "disease_name": "Powdery_mildew_on_lettuce",
+      "disease_confidence": 0.695,
+      "n_disease_detections": 1,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": "stage 03- Head formation",
+      "growth_confidence": 0.967,
+      "disease_flag": true,
+      "disease_name": "Bacterial",
+      "disease_confidence": 0.449,
+      "n_disease_detections": 1,
+      "action": "schedule_frequent_monitoring"
+    },
+    "after_boxes": [
+      {
+        "class": "Bacterial",
+        "confidence": 0.449,
+        "box_norm": [
+          -0.0001,
+          0.0014,
+          0.3013,
+          0.4194
+        ],
+        "center_norm": [
+          0.1506,
+          0.2111
+        ]
+      },
+      {
+        "class": "stage 03- Head formation",
+        "confidence": 0.967,
+        "box_norm": [
+          0.0714,
+          0.2446,
+          0.7693,
+          0.5186
+        ],
+        "center_norm": [
+          0.456,
+          0.5039
+        ]
+      }
+    ],
+    "after_size": [
+      420,
+      420
+    ],
+    "frame": "work_orders/run_20261020T030826Z/frames/WO-0022_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 1 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": ""
+  },
+  "aspect": "disease"
+}
