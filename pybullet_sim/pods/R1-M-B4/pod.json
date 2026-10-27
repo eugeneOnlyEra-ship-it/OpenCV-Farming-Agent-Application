@@ -1,0 +1,26 @@
+{
+ "pod_id": "R1-M-B4",
+ "tag": "R1-M-B4",
+ "index": 15,
+ "crop_type": "lettuce",
+ "rail": 1,
+ "station": 1,
+ "station_letter": "M",
+ "side": "back",
+ "slot": 4,
+ "trough_id": "R1-M-B",
+ "sim_location": {
+  "row": 0,
+  "col": 1,
+  "layer": 3,
+  "side": "back",
+  "sim_pod_id": "R0C1-L3-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Powdery_mildew_on_lettuce"
+ },
+ "image": "lettuce_disease_Powdery_mildew_on_lettuce_R1-M-B4.jpg"
+}

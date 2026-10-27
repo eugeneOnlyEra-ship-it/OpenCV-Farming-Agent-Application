@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-M-B4",
+ "tag": "R2-M-B4",
+ "index": 39,
+ "crop_type": "lettuce",
+ "rail": 2,
+ "station": 1,
+ "station_letter": "M",
+ "side": "back",
+ "slot": 4,
+ "trough_id": "R2-M-B",
+ "sim_location": {
+  "row": 1,
+  "col": 1,
+  "layer": 3,
+  "side": "back",
+  "sim_pod_id": "R1C1-L3-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": false,
+  "disease_name": null
+ },
+ "image": "lettuce_disease_healthy_R2-M-B4.jpg"
+}

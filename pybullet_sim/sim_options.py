@@ -5,6 +5,6 @@ gantry_robot reads them when it needs them. (The window must never import gantry
 PyBullet and OpenCV and can stall the UI.)
 """
 OPTIONS = {
-    "localization": "vision",     # "vision" = ArUco tags + solvePnP; "simulator_mask" = PyBullet's own mask (reference)
+    "localization": "simulator_mask",  # RGB-D geometry from camera views; no ArUco tags
     "stereo_rig": True,           # use the calibrated two-camera head rig (needs a saved calibration)
 }

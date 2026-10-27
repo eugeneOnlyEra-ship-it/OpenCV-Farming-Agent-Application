@@ -392,9 +392,11 @@ pod. Approval, dispatch and the robot steps stay in `worker_planner.py`. Backend
 
 | File | Role |
 |---|---|
-| `pod_registry.py` | Loads `pods_manifest.json` into 72 pod dicts (metadata + growth trajectories, no rig geometry) |
-| `pods_manifest.json` | The 72 pod → image → ground-truth assignments, plus each front pod's full growth trajectory |
-| `sample_images/` | 129 real curated photos (72 base + 57 additional trajectory stages) |
+| `pod_registry.py` | Builds the 72 pod dicts (metadata + growth trajectories, no rig geometry) from the per-pod folders in `pybullet_sim/pods/` |
+| `pybullet_sim/pods/<POD_ID>/` | **Each pod's own data set**: `pod.json` + its real photos (front pods: a 5-visit growth timeline; back pods: one disease-verified photo). Replaces `pods_manifest.json` and `sample_images/` |
+| `pybullet_sim/pod_data.py`, `tools/migrate_pod_folders.py` | Loader/validator for those folders; the tool that builds them from the DataPipeline package |
+| `cloud_model.py`, `cloud_backends.py`, `cloud_sync.py`, `cloud_cli.py`, `aws/` | The cloud database layer: what is stored per pod and how events become records (no AWS), the DynamoDB + local-file backends, the non-blocking sync worker with its outbox, the command-line viewer, and the CloudFormation template / IAM policy / deployment guide |
+| `pybullet_sim/pod_labels.py` | The number printed on every trough, and the OpenCV reader that identifies a pod from it |
 | `perception.py` | `classify_pod()` — real ONNX models via `cv2.dnn`, thread-local model cache |
 | `agent.py` | `decide_action()` — the 4-action decision logic |
 | `camera.py` | Capture + submit only, no classification |
@@ -519,6 +521,53 @@ is what matters everywhere; the wall-clock speedup from it scales with
 how many cores you actually run it on, and should be more pronounced
 on typical multi-core hardware than what this sandbox could show.
 
+## Pod tags: the camera agent reads which pod it is working on
+
+Every trough in the PyBullet scene carries a printed tag with its pod number (`R1-L-F1` = rail 1, left station, front, slot 1) on the aisle-facing wall, exactly the number the application and the data folders use. The gantry still drives to **coordinates** (a real gantry must), but it is **not told which pod it reached**: its camera captures three views and `pod_labels.PodLabelReader` reads the tag from those frames with OpenCV:
+
+1. find the plate's black border (a closed, four-sided ring), 2. perspective-rectify it, 3. cut the fixed 7-character format into cells, 4. match each cell against glyph templates, 5. vote across the three views (≥2 must agree, or one very clean view, and none may contradict).
+
+What the number is used for:
+
+* the application's scores/decision are attached to the pod the camera **read**, and only if that equals the pod the job was **dispatched** for (`PyBulletBridge._check_identity`);
+* a tag that is unreadable, hidden, wrong, or not the one expected at that location means **no work on that pod**: the service agent stays stowed, no scores are attached, and a work order **fails** (lane released) instead of treating the wrong pod;
+* the pod is colour-coded by its decision only once its tag is confirmed; the UI fleet panel shows the tag the camera read, and every pod card shows a **POD TAG** line at the top of its disease panel ("waiting…" until the robot camera has visited, then the number it read and how many of the 3 views agreed, or "NOT CONFIRMED" in red; it stays visible while a robot job takes over that panel). **Click that line** to open the *Camera tag reading* window, which shows the process: the camera's frames with the tag plate OpenCV found outlined, the plate flattened and read character by character (with each character's match score), the vote across the views, then tag → `pybullet_sim/pods/<tag>/pod.json` → **crop type**, checked against what the application dispatched (for work orders a crop mismatch also withholds work); the pose record carries an `identity` block (label, confidence, views agreeing, per-view reads).
+
+The reader is a purpose-built reader for the farm's own tag format, not a general OCR; it never "snaps" to the nearest valid pod, so an uncertain read is a failed read. Measured on the real renderer: 72/72 pods identified, 216/216 single views correct, 0 wrong reads, ~100 ms per pod; hidden or damaged tags are rejected, never misread (`python dev/check_pod_tags.py`). The production-grade equivalent is a fiducial (ArUco/QR) next to the human-readable number.
+
+### Pod tags · live (watch it happen)
+
+The **Pod tags** tab (next to Operations and Calibration) is a live monitor of the tag reading, for as long as a run with *PyBullet robots* is going:
+
+* **LIVE CAMERA** – the front and back camera agents' frames, updated the instant each one is captured, with where the camera is (rail / station / layer) and what it read.
+* **OPENCV READING** – the latest reading played back in five stages: the 3 frames with the plate OpenCV found outlined → the plate flattened → each character decoded with its match score → the vote across views → the pod record the number leads to (crop type) and the check against what was dispatched. A failed read shows exactly where it failed (e.g. "no tag found" in every view).
+* **HISTORY** – every reading with time, camera, tag read, dispatched pod, crop, result and confidence; click a row to look at that reading again (then **▶ Follow live** to resume).
+
+The frames and results are live. The reading itself takes ~0.1 s, too fast to watch, so the analysis panel replays each finished reading at a human pace and speeds up on its own if readings pile up (the header shows how many are waiting).
+
+## Cloud database: every pod's identity connected to its data (Amazon DynamoDB)
+
+The farm keeps one record per pod in the cloud, under **the number on its tag** (`R1-L-F1`): its **crop type, growth stage, every inspection, disease status, treatment history and harvest readiness**, plus whether the robot camera has confirmed the tag. **No images are stored in the cloud**: photos stay on this computer (a file name and SHA-256 of each inspected photo is kept, so a cloud record can be matched to its photo).
+
+```
+robot camera reads the tag ──┐                       ┌─ PROFILE  the pod right now (crop, stage, disease, treatments, harvest, status)
+models + decision rules ─────┼─► background queue ──►│  INSPECTION#…  every scan                       (one DynamoDB table,
+work orders (treat/harvest…) ┘   (retries, disk outbox)│  ORDER#…       every treatment / harvest / replant   keyed by pod)
+                                                      └─ TAGREAD#…     every tag the camera read
+```
+
+* **Switching it on:** `export FARM_DDB_TABLE=FarmPods FARM_AWS_REGION=us-east-1` (see `aws/DEPLOY.md`: create the table with `aws/farm_table.yaml`, attach the least-privilege policy). With nothing set the same pipeline writes a **local file** (`dynamo_table_cloud.json`) and the interface says "☁ local", not AWS.
+* **Seeing it:** the **☁** button (top bar) shows the sync state (`☁ AWS ✓ 143`, or `☁ OFFLINE · 12 waiting`) and jumps to the **Cloud** tab, which reads the records back from the table (only while the tab is showing). From a terminal: `python cloud_cli.py show R1-L-F1`, `pods --status harvest_ready`, `summary`, `history R1-L-F1 --kind treatments`, `ping`.
+* **Never blocks the farm:** writes happen in a background thread with retries; if AWS is unreachable events wait in an on-disk outbox and are sent, in order and without double counting, when it returns.
+* **Images can't leak:** bytes, arrays, image-like fields, base64 and oversized text are refused in code before any write.
+* **Status per pod** (for the `gsi_status` index): `identity_unconfirmed`, `treatment_in_progress`, `disease_flagged`, `verifying_treatment`, `harvest_in_progress`, `harvest_ready`, `harvested`, `growing`.
+* **Web endpoint:** `GET /pods/{tag}`, `GET /pods`, and `/health` use a read-only Lambda; `POST /observations` uses a separate write-scoped Lambda to persist OpenCV metadata and generate a work order. The write route requires `ObservationApiKey`; the local app uses `FARM_LAMBDA_API_URL` and `FARM_LAMBDA_API_KEY`. Offline observations are retained in `farm_lambda_outbox.jsonl` and retried. See `aws/DEPLOY.md`, Part 2.
+* **Tested** (`python dev/check_cloud.py`) against a mock of DynamoDB (`moto`), never a real account: model rules, privacy, schema/CloudFormation/IAM agreement, local-vs-DynamoDB parity, outage and recovery, a real engine run, and the robot camera's tag reads. Your first run against real AWS is the real test: `python cloud_cli.py ping`.
+
+## Per-pod data folders
+
+`pybullet_sim/pods/<POD_ID>/` holds each pod's data set: `pod.json` (who/where/what, ground truth, its 3-D location in the scene) and its real photos. The folder name is the number on the tag, so "the tag the camera just read" leads straight to "this pod's data". `pod_registry.py` builds `PODS` from these folders (one copy of the data; `pods_manifest.json` and `sample_images/` are no longer read and can be deleted). Source: the DataPipeline package — every front pod has its own curated photo for each of 5 visits (lettuce and mushroom keep extra, different harvest-stage photos for the visits they must wait in). `crop_cycle.py` keeps its age/lingering/harvest-wait model but now shows a pod's *different* photo on successive visits within a stage instead of repeating one. Rebuild the folders with `python pybullet_sim/tools/migrate_pod_folders.py <DataPipeline folder>`; check them with `python pybullet_sim/pod_data.py`.
+
 ## PyBullet integration boundary
 
-The application registry intentionally remains geometry-free. The gantry model, URDF, and physical pod registry are in `pybullet_sim/`. The OpenCV pipeline still analyses its configured image/frame source; the PyBullet GUI currently visualises robot motion and service actions but does not yet provide the pixels used by OpenCV.
+The application registry intentionally remains geometry-free (pod folders record each pod's scene location, but the registry dicts carry none). The gantry model, URDF, and physical pod registry are in `pybullet_sim/`. The OpenCV pipeline still analyses its configured image/frame source (the pod's photos); the PyBullet cameras' own rendered frames are used for localization, for the per-frame diagnostic scores, and now to **read the pod tag**.

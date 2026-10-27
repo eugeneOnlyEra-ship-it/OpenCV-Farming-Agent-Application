@@ -4,8 +4,9 @@
     python -m pybullet_sim.rig_calibration --stream   # the same, but one JSON event per line (what the Calibration tab reads)
 
 It opens its own headless PyBullet connection, holds a chessboard in front of the rig at many poses, renders both
-cameras at the same instant each time, and runs cv2.calibrateMultiviewExtended on the pairs -- re-solving after every
-new pair so you can watch the estimate converge. The result goes to logs/stereo_rig_calibration.json together with
+cameras at the same instant each time, and runs the available OpenCV stereo-calibration solver on the pairs -- re-solving after every
+new pair so you can watch the estimate converge. OpenCV 5's multiview API is used when available;
+OpenCV 4 uses calibrateCamera plus stereoCalibrate. The result goes to logs/stereo_rig_calibration.json together with
 the error against the rig's TRUE geometry (known here because it is a simulation); the frames go to
 logs/calibration_frames/. It runs as a separate process, so it can never stall the application window or the robot.
 The robot only ever LOADS the saved result.

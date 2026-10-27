@@ -1,0 +1,26 @@
+{
+ "pod_id": "R3-R-B2",
+ "tag": "R3-R-B2",
+ "index": 69,
+ "crop_type": "mushroom",
+ "rail": 3,
+ "station": 2,
+ "station_letter": "R",
+ "side": "back",
+ "slot": 2,
+ "trough_id": "R3-R-B",
+ "sim_location": {
+  "row": 2,
+  "col": 2,
+  "layer": 1,
+  "side": "back",
+  "sim_pod_id": "R2C2-L1-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Wilt"
+ },
+ "image": "mushroom_disease_Wilt_R3-R-B2.jpg"
+}

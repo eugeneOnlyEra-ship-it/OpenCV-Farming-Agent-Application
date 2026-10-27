@@ -1,0 +1,26 @@
+{
+ "pod_id": "R3-L-B2",
+ "tag": "R3-L-B2",
+ "index": 53,
+ "crop_type": "cabbage",
+ "rail": 3,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 2,
+ "trough_id": "R3-L-B",
+ "sim_location": {
+  "row": 2,
+  "col": 0,
+  "layer": 1,
+  "side": "back",
+  "sim_pod_id": "R2C0-L1-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": false,
+  "disease_name": null
+ },
+ "image": "cabbage_disease_Cabbage_Healthy_R3-L-B2.jpg"
+}

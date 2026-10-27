@@ -141,10 +141,12 @@ CHANGING THINGS
      new agent, new rule, ...). After ANY change:  python3 run_checks.py
 """
 
+import inspect
 import math
 import cv2
 import numpy as np
 import os
+import tempfile
 try:
     # C++ frame collector (pybind11). Built from cpp/ -- see cpp/README. Falls back to cv2 if absent.
     import pod_capture as _cpp_capture
@@ -159,7 +161,6 @@ import pybullet_data
 
 # Farm geometry and the per-pod plant layout come from pod_registry.py (the data layer).
 # Everything about the MACHINE lives in this file and in urdf/gantry.urdf.
-from .pod_markers import add_pod_marker, marker_id_for_pod, estimate_pod_pose_from_markers
 from . import stereo_rig, sim_options, rig_feed
 from .pod_registry import (
     ROWS, COLUMNS, LAYERS_PER_STATION, COLUMN_SPACING_M, ROW_SPACING_M,
@@ -167,16 +168,14 @@ from .pod_registry import (
     TOP_DOCK_Y, BOTTOM_DOCK_Y, DOCK_PARK_X, HORIZONTAL_RAILS,
     PLANT_X_OFFSETS_M, PLANTS_PER_POD, PLANT_PROTRUSION_M, PLANT_HALF_SIZE_M,
 )
+# Printed pod tags (the number on every trough) and the OpenCV reader the camera agent identifies pods with.
+from .pod_labels import (
+    PLATE_W_M, PLATE_H_M, PLATE_STANDOFF_M, PLATE_X_OFFSET_M, label_for_pod, render_plate, render_reading_sheet, default_reader,
+)
 
-# How a pod's pose is found from the camera views:
-#   "vision"          ArUco marker on the pod -> OpenCV detector -> solvePnP (RGB image only). If the
-#                     marker can't be read, falls back to the simulator-mask pose and says so in the record.
-#   "simulator_mask"  the original method: PyBullet's segmentation mask picks out the pod.
-POD_LOCALIZATION_MODE = "vision"      # (the run-time switch is sim_options.OPTIONS["localization"], set from the Settings tab)
-
+# Pod pose is estimated from the RGB-D views and PyBullet segmentation geometry. The printed pod number
+# remains on each trough and is still read independently by the camera agent using OpenCV OCR.
 # Each camera agent's head carries TWO cameras (stereo_rig.py): 4 cameras in total, 2 per camera agent.
-# The rig is calibrated once with cv2.calibrateMultiviewExtended (logs/stereo_rig_calibration.json) and the
-# calibrated intrinsics/extrinsics are what the marker localization uses. False = one camera per head.
 STEREO_RIG_ENABLED = True
 
 # =============================================================================
@@ -642,8 +641,12 @@ class GantryRobot:
         self.on_localization = None
         self.rig = None                # calibrated two-camera head rig (stereo_rig), None = single camera
         self._rig_checked = False
-        self.aruco_ids = {}            # pod_id -> ArUco marker id printed on that pod
-        self.aruco_body_ids = {}       # pod_id -> body id of the marker plate
+        # Every trough carries a printed tag; the camera agent reads it to learn WHICH pod it is looking at.
+        self.pod_label_ids = {}        # pod_id -> body id of that trough's tag plate
+        self.pod_identities = {}       # pod_id -> the camera agent's latest tag-read result for that pod
+        self.reads_pod_tags = True     # lets the bridge know identity comes from vision, not from the dispatch list
+        self.label_reader = default_reader()
+        self._label_dir = None
         # every static thing the machine must stay clear of, recorded as it is
         # built: (name, (xmin,ymin,zmin), (xmax,ymax,zmax)). Used by
         # verify_motion.py; cylinders are recorded as their bounding box.
@@ -811,10 +814,6 @@ class GantryRobot:
                 basePosition=[pos["x"], pos["y"], pos["z"]],
             )
             self.pod_marker_ids[pod["pod_id"]] = body_id
-            # fiducial the camera agents read to find this pod (and to know which pod it is)
-            self.aruco_ids[pod["pod_id"]] = marker_id_for_pod(pod_index)
-            self.aruco_body_ids[pod["pod_id"]] = add_pod_marker(
-                p, self.client, pod, self.aruco_ids[pod["pod_id"]], half[1])
             self.obstacles.append((
                 f"trough {pod['pod_id']}",
                 (pos["x"] - half[0], pos["y"] - half[1], pos["z"] - half[2]),
@@ -822,6 +821,7 @@ class GantryRobot:
             ))
 
             self._add_plants(pod)
+            self._add_pod_label(pod)
 
             row_y = pod["row"] * ROW_SPACING_M
             bracket_span = pos["y"] - row_y  # signed: + front, - back
@@ -831,6 +831,98 @@ class GantryRobot:
                 position=[pos["x"], row_y + bracket_span / 2, pos["z"]],
                 color=bracket_color,
             )
+
+    def _identify_pod(self, pod, views):
+        """Read the printed tag from the frames the camera just captured (OpenCV, see pod_labels.PodLabelReader).
+
+        Returns the vote over all views plus two facts about WHERE the agent is: `location_label` is the tag that
+        should be on the trough the gantry drove to (the gantry navigates by coordinates, as a real one must), and
+        `at_expected_location` says whether the tag the camera actually read is that one."""
+        frames = [cv2.cvtColor(v["rgba"], cv2.COLOR_RGBA2BGR) for v in views if v.get("rgba") is not None]
+        identity = self.label_reader.read_views(frames, keep_evidence=True)
+        # Keep ONE compact picture of the reading (frames, located plate, per-character decode) for the application to
+        # show, instead of holding every raw frame for every pod.
+        evidence = identity.pop("evidence", None)
+        if evidence is not None:
+            ok, png = cv2.imencode(".png", render_reading_sheet(evidence))
+            identity["sheet_png"] = png.tobytes() if ok else None
+            identity["evidence_data"] = self._evidence_data(evidence)
+        identity["location_label"] = label_for_pod(pod)
+        identity["at_expected_location"] = bool(identity["confirmed"] and identity["label"] == identity["location_label"])
+        self.pod_identities[pod["pod_id"]] = identity
+        return identity
+
+    @staticmethod
+    def _evidence_data(evidence):
+        """The reading as plain data (JPEG frames, the flattened plate, per-character results) so an interface can draw
+        it and play it back stage by stage."""
+        views = []
+        for v in evidence["views"]:
+            ok, jpg = cv2.imencode(".jpg", v["frame"], [cv2.IMWRITE_JPEG_QUALITY, 80])
+            views.append({"jpg": jpg.tobytes() if ok else None, "corners": v["corners"], "text": v["text"],
+                          "valid": v["valid"], "confidence": v["confidence"], "reason": v["reason"],
+                          "shape": [int(evidence_dim) for evidence_dim in v["frame"].shape[:2]]})
+        flat_png = None
+        if evidence.get("flat") is not None:
+            ok, buf = cv2.imencode(".png", evidence["flat"])
+            flat_png = buf.tobytes() if ok else None
+        return {"views": views, "flat_png": flat_png, "cells": evidence.get("cells", []), "best": evidence.get("best")}
+
+    @staticmethod
+    def _identity_record(identity):
+        """The JSON-safe summary of a tag read that is stored on the pod's localization record."""
+        keys = ("label", "confirmed", "confidence", "views_read", "views_total", "agreeing_views", "conflict",
+                "reason", "location_label", "at_expected_location", "per_view")
+        return {k: identity.get(k) for k in keys}
+
+    @staticmethod
+    def _call_assess(assess, pod, identity):
+        """assess(pod, identity=...) when the callback accepts it (the bridge does); plain assess(pod) otherwise, so
+        older callbacks keep working."""
+        try:
+            accepts = "identity" in inspect.signature(assess).parameters
+        except (TypeError, ValueError):
+            accepts = False
+        return assess(pod, identity=identity) if accepts else assess(pod)
+
+    def _label_texture(self, text):
+        """PNG file holding the printed tag for `text` (written once, then reused; PyBullet loads textures from disk)."""
+        if self._label_dir is None:
+            self._label_dir = os.path.join(tempfile.gettempdir(), "farm_pod_tags")
+            os.makedirs(self._label_dir, exist_ok=True)
+        path = os.path.join(self._label_dir, f"{text}.png")
+        if not os.path.exists(path):
+            cv2.imwrite(path, render_plate(text))
+        return path
+
+    def _add_pod_label(self, pod):
+        """Mount the pod's printed number on the aisle-facing wall of its trough (visual-only, like everything else
+        in the scene). The text is what the camera agent later reads with OpenCV; nothing else in the simulation
+        tells it which pod it is looking at.
+
+        The plate is a flat quad with explicit texture coordinates. Text must read left-to-right for someone standing
+        in the aisle looking at the trough: a front-face viewer looks toward -Y, so their right-hand side is -X; a
+        back-face viewer looks toward +Y, so their right is +X."""
+        text = label_for_pod(pod)
+        pos = pod["position_m"]
+        out = 1 if pod["side"] == "front" else -1
+        y = pos["y"] + out * (TROUGH_HALF_EXTENTS_M[1] + PLATE_STANDOFF_M)
+        hw, hh = PLATE_W_M / 2.0, PLATE_H_M / 2.0
+        right = -1.0 if out > 0 else 1.0                    # world X direction of the viewer's right-hand side
+        corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]       # local x (along the row), z (up)
+        verts = [[cx, 0.0, cz] for cx, cz in corners]
+        uvs = [[0.5 + 0.5 * right * (cx / hw), 0.5 + 0.5 * (cz / hh)] for cx, cz in corners]   # PyBullet's v runs bottom-up
+        normal = [0.0, float(out), 0.0]
+        # counter-clockwise as seen from the aisle side, so the face is not culled
+        indices = [0, 1, 2, 0, 2, 3] if out < 0 else [0, 2, 1, 0, 3, 2]
+        vis = p.createVisualShape(p.GEOM_MESH, vertices=verts, indices=indices, normals=[normal] * 4, uvs=uvs,
+                                  rgbaColor=[1, 1, 1, 1], specularColor=[0, 0, 0])
+        body = p.createMultiBody(baseMass=0, baseCollisionShapeIndex=-1, baseVisualShapeIndex=vis,
+                                 basePosition=[pos["x"] + PLATE_X_OFFSET_M, y, pos["z"]])
+        p.changeVisualShape(body, -1, textureUniqueId=p.loadTexture(self._label_texture(text)),
+                            rgbaColor=[1, 1, 1, 1], specularColor=[0, 0, 0])
+        self.pod_label_ids[pod["pod_id"]] = body
+        return body
 
     def _add_plants(self, pod):
         """Create each upright plant as an independent removable visual body.
@@ -1422,7 +1514,9 @@ class GantryRobot:
                     "corners_a": entry.get("corners"), "corners_b": entry.get("corners_b"),
                     "reprojection_px_a": entry.get("reprojection_px"), "reprojection_px_b": entry.get("reprojection_px_b"),
                     "center_a": entry.get("center"), "center_b": entry.get("center_b"),
-                    "stereo_center": entry.get("stereo_center"), "stereo_vs_pnp_mm": entry.get("stereo_vs_pnp_mm")})
+                    "stereo_center": entry.get("stereo_center"), "stereo_vs_pnp_mm": entry.get("stereo_vs_pnp_mm"),
+                    "target_pixels": entry.get("target_pixels"),
+                    "reconstructed_points": entry.get("reconstructed_points")})
             fused = vision_pose.get("center_world")
             truth = [float(v) for v in truth]
             rig_feed.push({
@@ -1467,6 +1561,16 @@ class GantryRobot:
         self.events.append(event)
         if self.on_event is not None:
             self.on_event(event)
+
+    def _emit_transient(self, kind, pod=None, agent=None, **info):
+        """Like _emit, but the event is only handed to on_event and NOT kept in self.events: used for bulky live data
+        (camera frames) that would otherwise pile up in the event log for the whole session."""
+        if self.on_event is None:
+            return
+        event = {"step": self.sim_steps, "kind": kind, "pod_id": pod["pod_id"] if pod else None,
+                 "agent": agent.key if isinstance(agent, Agent) else agent}
+        event.update(info)
+        self.on_event(event)
 
     # ---- rail routing ------------------------------------------------------------------------
 
@@ -1656,14 +1760,31 @@ class GantryRobot:
                 })
                 self._emit("plant_scan", pod, agent=cam, plant=k,
                            localization_view=view_index + 1)
+                if self.on_event is not None:                       # the live feed: the frame as it was captured
+                    ok_, jpg = cv2.imencode(".jpg", cv2.cvtColor(views[-1]["rgba"], cv2.COLOR_RGBA2BGR),
+                                            [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    if ok_:
+                        self._emit_transient("camera_frame", pod, agent=cam, view=view_index + 1, views=PLANTS_PER_POD,
+                                             jpg=jpg.tobytes(), side=pod["side"], row=pod["row"], col=pod["col"],
+                                             layer=pod["layer"])
                 yield from self._g_wait(CAMERA_PLANT_SECONDS)
             direction = -direction
 
             # (3) Analyse the application image first. The callback returns the
             # model scores/decision already produced by the OpenCV pipeline.
             # Multi-view pose calculations run after those scores are available.
+            # (2b) WHICH pod is this? Read the printed tag out of the frames just captured. Nothing is told to the
+            # agent here: the number on the trough is the only identity it has, and the assess() callback receives
+            # what the camera read (see pod_labels.py).
+            identity = self._identify_pod(pod, views)
+            shared.setdefault("identity", {})[pod["pod_id"]] = identity
+            self._emit("pod_identified", pod, agent=cam, label=identity["label"], confirmed=identity["confirmed"],
+                       confidence=identity["confidence"], agreeing_views=identity["agreeing_views"],
+                       views_total=identity["views_total"], at_expected_location=identity["at_expected_location"],
+                       location_label=identity["location_label"], reason=identity["reason"])
+
             self._emit("assess", pod, agent=cam)
-            result = assess(pod) or {}
+            result = self._call_assess(assess, pod, identity) or {}
             shared["assessed"][pod["pod_id"]] = result
 
             # Save and run the existing OpenCV/ONNX models on the actual rendered
@@ -1766,38 +1887,29 @@ class GantryRobot:
                     self._emit("multiview_contact_sheet_failed", pod, agent=f"camera_{side}",
                                error=repr(exc))
 
-            # The simulator-mask estimate is always computed: it is the reference the vision
-            # estimate is scored against (and the fallback if the marker can't be read).
-            mask_pose = estimate_pod_pose(
+            # Localize from the camera's RGB-D frames and segmentation geometry; no ArUco plate is
+            # placed on the pod or used for localization. The printed pod number remains a separate
+            # visual label and is still read by the OpenCV pod-label reader.
+            pose = estimate_pod_pose(
                 views, pod["pod_id"], self.pod_marker_ids[pod["pod_id"]],
                 pod["side"], TROUGH_HALF_EXTENTS_M)
-            pose = mask_pose
-            if sim_options.OPTIONS["localization"] == "vision":
-                vision_pose = estimate_pod_pose_from_markers(
-                    views, pod, self.aruco_ids[pod["pod_id"]], TROUGH_HALF_EXTENTS_M, rig=self.rig)
-                truth = np.array(p.getBasePositionAndOrientation(
-                    self.pod_marker_ids[pod["pod_id"]], physicsClientId=self.client)[0])
-                if vision_pose["valid"]:
-                    pose = vision_pose
-                    pose["fallback_used"] = False
-                else:
-                    pose = dict(mask_pose)
-                    pose["method"] = mask_pose["method"] + "_fallback_after_marker_not_read"
-                    pose["fallback_used"] = True
-                    pose["marker_attempt"] = {"contributing_view_count": vision_pose["contributing_view_count"],
-                                              "views": vision_pose["views"]}
-                # Ground truth = where the simulator actually put the trough. Never used to steer the robot.
-                pose["ground_truth_center_world"] = [float(v) for v in truth]
-                for name, est in (("vision_error_m", vision_pose.get("center_world")),
-                                  ("simulator_mask_error_m", mask_pose.get("center_world"))):
-                    pose[name] = None if est is None else [float(a - b) for a, b in zip(est, truth)]
-                self._emit("pod_vision_pose", pod, agent=cam, valid=vision_pose["valid"],
-                           views_with_marker=vision_pose["contributing_view_count"],
-                           error_m=pose["vision_error_m"])
-                self._publish_rig_sample(pod, views, vision_pose, pose, truth)
+            truth = np.array(p.getBasePositionAndOrientation(
+                self.pod_marker_ids[pod["pod_id"]], physicsClientId=self.client)[0])
+            pose["ground_truth_center_world"] = [float(v) for v in truth]
+            estimate = pose.get("center_world")
+            pose["simulator_mask_error_m"] = (None if estimate is None else
+                [float(a - b) for a, b in zip(estimate, truth)])
+            pose["fallback_used"] = False
+            self._emit("pod_localization_geometry", pod, agent=cam, valid=pose["valid"],
+                       method=pose.get("method"), error_m=pose["simulator_mask_error_m"])
+            # Keep the calibration tab's per-view feed alive; geometry-derived records contain no
+            # ArUco corners, which are intentionally no longer part of the simulation.
+            self._publish_rig_sample(pod, views, pose, pose, truth)
             pose["model_scores"] = result.get("model_scores") or result.get("classification") or {}
             pose["decision"] = result.get("decision") or {}
-            pose["application_pod_id"] = result.get("application_pod_id", pod["pod_id"])
+            pose["application_pod_id"] = (result.get("application_pod_id")
+                                          or (identity["label"] if identity["confirmed"] else None) or pod["pod_id"])
+            pose["identity"] = self._identity_record(identity)
             pose["visit_num"] = int(result.get("visit_num", 1) or 1)
             pose["camera_view_model_scores"] = view_model_scores
             pose["captured_image_paths"] = image_paths
@@ -1838,7 +1950,15 @@ class GantryRobot:
             yield from self._g_wait_until(lambda i=i: shared["camera_left"][side] > i)
             action = shared["assessed"][pod["pod_id"]].get("service_action")
             if not action:
-                self._emit("service_skip", pod, agent=svc)
+                skip = shared["assessed"][pod["pod_id"]].get("skip_reason")
+                self._emit("service_skip", pod, agent=svc, **({"reason": skip} if skip else {}))
+                continue
+            identity = shared.get("identity", {}).get(pod["pod_id"])
+            if identity is not None and not (identity["confirmed"] and identity["at_expected_location"]):
+                # Defence in depth: whatever the callback decided, never work a pod whose tag the camera did not
+                # confirm at the place the gantry drove to.
+                self._emit("service_skip", pod, agent=svc, reason="pod tag not confirmed at this location: "
+                           + str(identity.get("reason") or "tag does not match the pod expected here"))
                 continue
             pose = shared.get("localization", {}).get(pod["pod_id"])
             if not pose or not pose.get("valid"):

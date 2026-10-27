@@ -1,0 +1,127 @@
+{
+  "order_id": "WO-0044",
+  "task": "TREAT",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R1-R-F4",
+  "crop_type": "mushroom",
+  "trough_id": "R1-R-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-R-F \u00b7 front",
+  "priority": 1,
+  "title": "Treat Wilt on R1-R-F4",
+  "rationale": "Wilt detected at 0.52 confidence (1 detection) -> cause unclear playbook.",
+  "evidence": {
+    "visit": 15,
+    "step": 3,
+    "n_steps": 4,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Lambda-Offline-WorkOrders-Calibration-Output-Fix(1)/OpenCV-Farming-Agent-Application/pybullet_sim/pods/R1-R-F4/mushroom_R1-R-F4_v3_Harvest_IMG_7790_MOV-0050_jpg.rf.9b8cfac681a596e8cb19b6fe10b2e14a.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": "Juvenile",
+    "growth_confidence": 0.861,
+    "disease_flag": true,
+    "disease_name": "Wilt",
+    "disease_confidence": 0.519,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "flag_for_treatment",
+    "reason": "Wilt detected at 0.52 confidence",
+    "trend": "stage advanced: Harvest -> Juvenile; disease newly flagged",
+    "cycle": {
+      "age": 0,
+      "harvest_age": 8,
+      "stage": "Juvenile",
+      "waiting_for_harvest": false,
+      "cycle": 2,
+      "stage_visit": 0
+    },
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-27T06:03:56+00:00",
+    "rail": 1
+  },
+  "targets": [
+    {
+      "class": "Wilt",
+      "confidence": 0.519,
+      "box_norm": [
+        0.2532,
+        0.0477,
+        0.4743,
+        0.8066
+      ],
+      "center_norm": [
+        0.4903,
+        0.451
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-R-F and align with pod R1-R-F4.",
+      "params": {
+        "trough": "R1-R-F",
+        "pod": "R1-R-F4",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "MARK_POD",
+      "text": "Flag R1-R-F4 for human inspection and keep other tools away from it.",
+      "params": {
+        "pod": "R1-R-F4"
+      }
+    },
+    {
+      "seq": 3,
+      "action": "REPORT",
+      "text": "Report completion, what was removed, and anything unexpected.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Only flags the pod for inspection - approval requested so a human stays in the loop.",
+  "human_notes": [
+    "The model's class is ambiguous: a human should inspect this pod before any treatment.",
+    "Moderate model confidence (0.52): glance at the photo before approving."
+  ],
+  "status": "completed",
+  "progress": 3,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-27T06:03:56+00:00",
+  "updated": "2026-10-27T06:04:13+00:00",
+  "history": [
+    [
+      "2026-10-27T06:03:56+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ],
+    [
+      "2026-10-27T06:03:56+00:00",
+      "dispatched",
+      "sent to worker_front"
+    ],
+    [
+      "2026-10-27T06:03:56+00:00",
+      "in_progress",
+      "pybullet_gantry started"
+    ],
+    [
+      "2026-10-27T06:04:13+00:00",
+      "completed",
+      "executed by PyBullet gantry"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "disease"
+}

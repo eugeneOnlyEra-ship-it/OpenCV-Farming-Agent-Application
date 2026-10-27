@@ -18,7 +18,7 @@ import app_ui
 app = app_ui.App()
 app.update()
 tabs = [app.notebook.tab(i, "text") for i in range(app.notebook.index("end"))]
-assert tabs == ["Operations", "Calibration", "Log", "Settings"], tabs
+assert tabs == ["Operations", "Calibration", "Pod tags", "Cloud", "Log", "Settings"], tabs
 
 def parent_tab(widget):
     """which notebook tab a widget lives on"""
@@ -39,11 +39,11 @@ expect = {"tree": "Operations", "next_btn": "Operations", "cards_frame": "Operat
 assert on == expect, {k: (on[k], expect[k]) for k in on if on[k] != expect[k]}
 
 app._log_line("all fine", "info")
-assert "all fine" in app.ticker.cget("text") and app.notebook.tab(2, "text") == "Log"
+assert "all fine" in app.ticker.cget("text") and app.notebook.tab(app._log_tab_index, "text") == "Log"
 app._log_line("something went wrong", "error")
-assert "something went wrong" in app.ticker.cget("text") and "⚠ 1" in app.notebook.tab(2, "text")
-app.notebook.select(2); app.update()
-assert app.notebook.tab(2, "text") == "Log", "alert should clear when the Log tab is opened"
+assert "something went wrong" in app.ticker.cget("text") and "⚠ 1" in app.notebook.tab(app._log_tab_index, "text")
+app.notebook.select(app._log_tab_index); app.update()
+assert app.notebook.tab(app._log_tab_index, "text") == "Log", "alert should clear when the Log tab is opened"
 app.notebook.select(0)
 
 assert all(not c.full_detail for c in app.cards), "default should be headline only"
@@ -54,6 +54,10 @@ assert all(not c.full_detail and c.trend.winfo_manager() == "" for c in app.card
 app.slots_var.set("4"); app._build_cards(); app.update()
 assert len(app.cards) == 4 and all(not c.full_detail for c in app.cards), "new cards must inherit the setting"
 app._apply_sim_settings()                          # must never raise, with or without PyBullet
+assert app.log.cget("wrap") == "word", "log lines must wrap in the visible pane"
+assert app.cal_text.cget("wrap") == "word", "calibration output must wrap in the visible pane"
+assert app.cloud_panel.detail.cget("wrap") == "word", "cloud detail output must wrap in the visible pane"
+assert app.crop_cb.winfo_exists() and app.crop_cb.master.master is not None
 app._set_state("running"); app._set_state("idle")
 print("OK: tabs", tabs)
 app.destroy()

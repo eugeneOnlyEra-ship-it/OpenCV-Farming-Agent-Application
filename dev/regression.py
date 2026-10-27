@@ -1,7 +1,7 @@
 """
 dev/regression.py -- headless regression checks for the whole application (no display needed).
 
-Run from the PROJECT ROOT (needs the models/ and sample_images/ folders):
+Run from the PROJECT ROOT (needs the models/ folder):
 
     python dev/regression.py                    # everything (~2-3 minutes)
     python dev/regression.py guardrails cycle   # only some checks
@@ -147,7 +147,10 @@ def check_engine():
        "every completed harvest was followed by a completed replant")
     for h in harvests:
         seq = [a for a, *_ in story[h.pod_id]]
-        i = next((k for k, a in enumerate(seq) if a is not None and a >= cc.harvest_age(h.crop_type)), None)
+        # anchor on the scan where the HARVEST decision was made: a ripe crop may legitimately be treated first
+        # (the disease model can flag one of its several real harvest-stage photos) and harvested a visit later
+        i = next((k for k, (a, _t, _m, d) in enumerate(story[h.pod_id])
+                  if a is not None and a >= cc.harvest_age(h.crop_type) and "harvest" in str(d)), None)
         if i is not None and i + 1 < len(seq):
             ok(seq[i + 1] == 0, f"{h.pod_id}: the image after harvest+replant is a new crop (age 0)", str(seq))
     loops = [o for o in orders if o.outcome]

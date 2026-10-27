@@ -1,0 +1,129 @@
+{
+  "order_id": "WO-0043",
+  "task": "REPLANT",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R1-R-F4",
+  "crop_type": "mushroom",
+  "trough_id": "R1-R-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-R-F \u00b7 front",
+  "priority": 2,
+  "title": "Replant mushroom at R1-R-F4",
+  "rationale": "Harvest WO-0041 finished: the pod is empty, so start the next crop.",
+  "evidence": {
+    "visit": 14,
+    "step": 2,
+    "n_steps": 4,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Lambda-Offline-WorkOrders-Calibration-Output-Fix(1)/OpenCV-Farming-Agent-Application/pybullet_sim/pods/R1-R-F4/mushroom_R1-R-F4_v1_Juvenile_IMG_1595_mov-0111_jpg.rf.01672702de215ecb97b65ea7e5258cea.jpg",
+    "image_size": [
+      640,
+      640
+    ],
+    "growth_stage": "Harvest",
+    "growth_confidence": 0.868,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.788,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "flag_for_harvest",
+    "reason": "mushroom at Harvest (0.87 confidence)",
+    "trend": "stage advanced: Intermediate -> Harvest",
+    "cycle": {
+      "age": 8,
+      "harvest_age": 8,
+      "stage": "Harvest",
+      "waiting_for_harvest": true,
+      "cycle": 1,
+      "stage_visit": 0
+    },
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-27T06:02:41+00:00",
+    "rail": 1
+  },
+  "targets": [],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-R-F and align with pod R1-R-F4.",
+      "params": {
+        "trough": "R1-R-F",
+        "pod": "R1-R-F4",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CLEAR_POD",
+      "text": "Remove remaining roots, stalks and old substrate; bag and seal them.",
+      "params": {}
+    },
+    {
+      "seq": 3,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool and the pod before planting.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "PLANT",
+      "text": "Install a fresh spawn block / substrate in R1-R-F4.",
+      "params": {
+        "crop": "mushroom"
+      }
+    },
+    {
+      "seq": 5,
+      "action": "WATER_FEED",
+      "text": "Water / feed with the pod's standard recipe.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion; the pod restarts at the first growth stage.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [
+    "When this job finishes the pod's crop cycle restarts: its next image is stage 1 of the new crop."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0041",
+  "not_before": "",
+  "created": "2026-10-27T06:03:34+00:00",
+  "updated": "2026-10-27T06:03:52+00:00",
+  "history": [
+    [
+      "2026-10-27T06:03:34+00:00",
+      "approved",
+      "no approval required by policy"
+    ],
+    [
+      "2026-10-27T06:03:34+00:00",
+      "dispatched",
+      "sent to worker_front"
+    ],
+    [
+      "2026-10-27T06:03:35+00:00",
+      "in_progress",
+      "pybullet_gantry started"
+    ],
+    [
+      "2026-10-27T06:03:52+00:00",
+      "completed",
+      "executed by PyBullet gantry"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "growth"
+}

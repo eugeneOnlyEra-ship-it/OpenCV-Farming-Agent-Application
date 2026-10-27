@@ -49,6 +49,8 @@ from agent import DISEASE_ACTION_THRESHOLD, GROWTH_ACTION_THRESHOLD, decide_acti
 from camera import PodCamera
 from cloud_pipeline import LocalCloudClient
 from crop_cycle import CycleStore, has_cycle
+from cloud_sync import FarmCloud
+from lambda_cloud_client import LambdaObservationClient
 from dynamo_client import LocalDynamoTable
 from frame_source import SimulatedCamera
 from llm_planner import RULE_TASK, LlmPlanner, OllamaBackend, ScriptedBackend
@@ -186,7 +188,7 @@ class Slot:
 
 class FarmEngine:
     def __init__(self, pods, n_slots=2, settings=None, reset_history=False,
-                 log_dir="logs", history_path="dynamo_table.json", orders_dir=None):
+                 log_dir="logs", history_path="dynamo_table.json", orders_dir=None, cloud=None):
         self.pods = list(pods)
         self.n_slots = n_slots
         self.settings = settings or Settings()
@@ -211,6 +213,15 @@ class FarmEngine:
         self.orders = OrderBook(orders_dir or os.path.join("work_orders", f"run_{stamp}"), OrderPolicy(),
                                 on_change=lambda: self.events.put(("orders", None)))
         self.orders.on_complete = self._on_order_complete
+        # The farm's cloud database (DynamoDB, or a local file that behaves the same): connects every pod's identity to
+        # its crop type, growth stage, inspections, disease status, treatment history and harvest readiness. Facts only,
+        # NEVER images. Every call is non-blocking and cannot fail the run. See cloud_sync.py / aws/DEPLOY.md.
+        self.farm_cloud = cloud if cloud is not None else FarmCloud.from_env(
+            base=os.path.splitext(history_path)[0], log=self._log)
+        # Optional API Gateway -> Lambda -> DynamoDB path. Offline operation stays local;
+        # compact OpenCV observations are queued to disk if AWS cannot be reached.
+        self.lambda_observations = LambdaObservationClient(log=self._log)
+        self.orders.on_event = self.farm_cloud.record_order_event
         self.orders.on_replant = self._on_replant
         self.pods_by_id = {p["pod_id"]: p for p in self.pods}
         self.frame_source = SimulatedCamera()          # swap for a real camera source (see frame_source.py)
@@ -218,6 +229,7 @@ class FarmEngine:
         self.planner_name = "rules only"
         # Optional PyBullet executor attached by app_ui.py. Perception remains in
         # this engine; the bridge only handles physical visits and dispatched orders.
+        self._simulation_bridge = None
         self.simulation_bridge = None
 
         self._data_lock = threading.Lock()     # history + logger + counters
@@ -320,6 +332,8 @@ class FarmEngine:
         if self.simulation_bridge is not None:
             self.simulation_bridge.join(timeout=20.0)
         self.orders.shutdown()
+        self.farm_cloud.close()                         # deliver (or safely spool) whatever is still queued
+        self.lambda_observations.close()
         info = self._flush()
         self._t_end = self._t_end or time.time()
         self.state = "stopped"
@@ -405,6 +419,17 @@ class FarmEngine:
         pure) so the UI can show what the decision would be right now."""
         return decide_action(classification, self.settings.disease_threshold, self.settings.growth_threshold)
 
+    @property
+    def simulation_bridge(self):
+        return self._simulation_bridge
+
+    @simulation_bridge.setter
+    def simulation_bridge(self, bridge):
+        """Attaching the PyBullet bridge also sends what its camera reads off each pod's tag to the cloud database."""
+        self._simulation_bridge = bridge
+        if bridge is not None:
+            bridge.on_tag_read = self.farm_cloud.record_tag_read
+
     # ----- crop life cycle -------------------------------------------------
 
     def _n_steps(self, pod):
@@ -472,12 +497,24 @@ class FarmEngine:
                 raise RuntimeError("no feedback from the analysis pipeline")
             cls = record["classification"]
             dec = decide_action(cls, st.disease_threshold, st.growth_threshold)
+            ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            cloud_order = self.lambda_observations.submit_observation(pod, cls, dec, ts, 0, "")
+            if cloud_order is None:
+                cloud_order = self.lambda_observations.take_work_order(pod["pod_id"])
+            if cloud_order and cloud_order.get("action") in ACTIONS:
+                dec = dict(dec)
+                dec["action"] = cloud_order["action"]
+                dec["reason"] = "AWS Lambda work order: " + str(cloud_order.get("reason") or cloud_order.get("title") or cloud_order.get("task"))
+                dec["decision_source"] = "aws_lambda"
+                dec["cloud_order_id"] = cloud_order.get("order_id")
             res = StepResult(
                 pod_id=o.pod_id, crop_type=o.crop_type, step_index=o.evidence.get("step", 0),
                 n_steps=o.evidence.get("n_steps", 1), visit_num=0, image_path=frame["path"], classification=cls,
                 decision=dec, trend_note="", latency_s=record["latency_seconds"], worker=record["worker_thread"],
-                timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"), kind="followup", logged=False,
+                timestamp=ts, kind="followup", logged=False,
                 conf_threshold=st.conf_threshold, verified={"aspect": None, "expected": "", "ok": None})
+            self.farm_cloud.record_inspection(pod, cls, dec, res.timestamp, None, "", None, None, frame["path"],
+                                              kind="followup")
             tag = "[SIMULATED FRAME] " if frame["simulated"] else ""
             self._log(f"loop: {order_id} ({o.task}) done -> new frame {tag}{frame['note']} -> reads: {dec['action']}")
             out = self.orders.close_loop(order_id, pod, res, frame["note"], frame["simulated"],
@@ -751,6 +788,20 @@ class FarmEngine:
                 hist_rows = self._summarize_history(prior)
                 trend_note = summarize_trend(prior, classification)
                 visit_num = len(prior) + 1
+            # Lambda sees actual OpenCV outputs, not the image. Its returned work order
+            # can change this scan's decision; if offline, a previously synced order can
+            # be applied on this visit while the new observation remains in the outbox.
+            cloud_order = self.lambda_observations.submit_observation(
+                pod, classification, decision, ts, visit_num, trend_note)
+            if cloud_order is None:
+                cloud_order = self.lambda_observations.take_work_order(pod["pod_id"])
+            if cloud_order and cloud_order.get("action") in ACTIONS:
+                decision = dict(decision)
+                decision["action"] = cloud_order["action"]
+                decision["reason"] = "AWS Lambda work order: " + str(cloud_order.get("reason") or cloud_order.get("title") or cloud_order.get("task"))
+                decision["decision_source"] = "aws_lambda"
+                decision["cloud_order_id"] = cloud_order.get("order_id")
+            with self._data_lock:
                 self.history.put_item({
                     "pod_id": pod["pod_id"], "timestamp": ts, "visit": visit_num,
                     "crop_type": pod["crop_type"],
@@ -768,6 +819,8 @@ class FarmEngine:
                 }
                 row = self.logger.log(pod_for_log, classification, decision)
                 row["visit"], row["trend"] = visit_num, trend_note
+                self.farm_cloud.record_inspection(pod, classification, decision, ts, visit_num, trend_note, cycle,
+                                                  gt_stage, image_path, kind="scan")
                 if has_cycle(pod):
                     self.cycles.advance(pod)           # one visit older (a ripe crop keeps waiting for the harvest)
                 self.action_counts[decision["action"]] += 1

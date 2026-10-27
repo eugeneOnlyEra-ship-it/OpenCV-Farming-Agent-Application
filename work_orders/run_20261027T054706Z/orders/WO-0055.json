@@ -1,0 +1,162 @@
+{
+  "order_id": "WO-0055",
+  "task": "HARVEST",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R2-L-F4",
+  "crop_type": "cabbage",
+  "trough_id": "R2-L-F",
+  "side": "front",
+  "location": "rail 2 \u00b7 trough R2-L-F \u00b7 front",
+  "priority": 2,
+  "title": "Harvest cabbage at R2-L-F4",
+  "rationale": "cabbage at harvest stage (S9, 0.74 confidence), no confident disease reading.",
+  "evidence": {
+    "visit": 10,
+    "step": 0,
+    "n_steps": 4,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Lambda-Offline-WorkOrders-Calibration-Output-Fix(1)/OpenCV-Farming-Agent-Application/pybullet_sim/pods/R2-L-F4/cabbage_R2-L-F4_v5_S9_img320_20211109_Yoro_Suiryoku_1000x1000_7_jpeg.rf.e4a8fe6cf5f07db4d826a292af846e3c_head1.jpg",
+    "image_size": [
+      320,
+      320
+    ],
+    "growth_stage": "S9",
+    "growth_confidence": 0.742,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.521,
+    "n_disease_detections": 3,
+    "n_growth_detections": 2,
+    "action": "flag_for_harvest",
+    "reason": "cabbage at S9 (0.74 confidence)",
+    "trend": "stage unchanged (S9)",
+    "cycle": {
+      "age": 18,
+      "harvest_age": 18,
+      "stage": "S9",
+      "waiting_for_harvest": true,
+      "cycle": 1,
+      "stage_visit": 0
+    },
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-27T06:07:31+00:00",
+    "rail": 2
+  },
+  "targets": [
+    {
+      "class": "S9",
+      "confidence": 0.742,
+      "box_norm": [
+        0.1441,
+        0.3459,
+        0.6776,
+        0.5522
+      ],
+      "center_norm": [
+        0.4829,
+        0.622
+      ]
+    },
+    {
+      "class": "S9",
+      "confidence": 0.291,
+      "box_norm": [
+        0.1526,
+        0.0007,
+        0.7181,
+        0.4829
+      ],
+      "center_norm": [
+        0.5116,
+        0.2421
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R2-L-F and align with pod R2-L-F4.",
+      "params": {
+        "trough": "R2-L-F",
+        "pod": "R2-L-F4",
+        "side": "front",
+        "rail": 2
+      }
+    },
+    {
+      "seq": 2,
+      "action": "LOCATE",
+      "text": "Align the tool with the 2 harvest-stage target region(s).",
+      "params": {
+        "n_targets": 2
+      }
+    },
+    {
+      "seq": 3,
+      "action": "HARVEST",
+      "text": "Harvest: cut the head at the base.",
+      "params": {
+        "crop": "cabbage"
+      }
+    },
+    {
+      "seq": 4,
+      "action": "PLACE_IN_CRATE",
+      "text": "Place in the crate and label it R2-L-F4 with the time.",
+      "params": {
+        "label": "R2-L-F4"
+      }
+    },
+    {
+      "seq": 5,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool before moving to another pod.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion and yield; pod is ready for replanting.",
+      "params": {}
+    }
+  ],
+  "requires_approval": true,
+  "approval_note": "Harvesting is irreversible - approval required while auto-approve is off.",
+  "human_notes": [
+    "After this harvest the worker replants the pod; its crop cycle then restarts at the first stage."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "",
+  "not_before": "",
+  "created": "2026-10-27T06:07:31+00:00",
+  "updated": "2026-10-27T06:08:07+00:00",
+  "history": [
+    [
+      "2026-10-27T06:07:31+00:00",
+      "approved",
+      "auto-approved (auto-approve is ON)"
+    ],
+    [
+      "2026-10-27T06:07:31+00:00",
+      "dispatched",
+      "sent to worker_front"
+    ],
+    [
+      "2026-10-27T06:07:40+00:00",
+      "in_progress",
+      "pybullet_gantry started"
+    ],
+    [
+      "2026-10-27T06:08:07+00:00",
+      "completed",
+      "executed by PyBullet gantry"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "growth"
+}

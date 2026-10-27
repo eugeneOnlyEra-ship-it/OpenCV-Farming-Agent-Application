@@ -36,7 +36,9 @@ import time
 import traceback
 from collections import deque
 
+from . import pod_data
 from . import pod_registry as sim_registry
+from .pod_labels import is_valid_label
 
 # Orders carried out by the worker agent (after the camera has localised the pod). RECAPTURE/VERIFY are camera-only.
 WORKER_TASKS = {"TREAT", "HARVEST", "REPLANT"}
@@ -75,6 +77,10 @@ class PyBulletBridge:
         self._running = {}                           # sim pod_id -> side job the gantry is working on now
         self._updates = deque()                      # late application scores for an already-captured pod
         self._outstanding = 0                        # pending + running + queued updates
+        self._tag_reads = {}                         # application pod id -> what the camera read off that pod's tag
+        self._tag_feed = deque(maxlen=300)           # live feed for the Pod tags monitor: camera frames + tag reads
+        self.on_tag_read = None                      # hook: called with each finished tag reading (no images in it)
+        self._tag_seq = 0
         self._station = None                         # (row, col) being served, or None
         self._scheduled_visit_pairs = set()
         self._sim_pods = sim_registry.service_visit_order()
@@ -226,6 +232,8 @@ class PyBulletBridge:
                 self._condition.notify_all()
                 return
             self._scheduled_visit_pairs.add(pair_key)
+            for stale in (app_pod_id, partner_app_id):
+                self._tag_reads.pop(stale, None)       # a new visit: the previous tag read no longer applies
             for pod in (sim_pod, partner):
                 if pod is None:
                     continue
@@ -252,6 +260,7 @@ class PyBulletBridge:
         with self._condition:
             if self._abandoned or self._stopping:
                 return
+            self._tag_reads.pop(order.get("pod_id"), None)
             if not self._dead:
                 self._pending.append({"kind": "order", "order": dict(order), "pod": sim_pod,
                                       "station": self._station_of(sim_pod)})
@@ -350,9 +359,11 @@ class PyBulletBridge:
                     result[camera]["active"] = {
                         "order_id": job["order"].get("order_id") if job["kind"] == "order" else None,
                         "task": "VISIT" if job["kind"] == "visit" else "LOCALISE",
-                        "pod": job.get("app_pod_id") or job["order"].get("pod_id", job["pod"]["pod_id"]),
+                        "pod": (job.get("_identity") or {}).get("label") or job.get("app_pod_id")
+                               or job["order"].get("pod_id", job["pod"]["pod_id"]),
                         "n": 3, "progress": views, "step": min(3, views + 1), "updated": "",
-                        "action": f"camera view {min(3, views + 1)}/3",
+                        "action": (f"tag {job['_identity']['label']} confirmed" if (job.get("_identity") or {}).get("ok")
+                                   else f"camera view {min(3, views + 1)}/3"),
                     }
         return result
 
@@ -521,24 +532,133 @@ class PyBulletBridge:
             self.on_log(f"PyBullet starting {order.get('order_id')} {order.get('task')} at {order.get('pod_id')}", "info")
         else:
             decision = DECISION_MARK.get((job.get("decision") or {}).get("action"))
-        job.update(_views=0, _phase="camera", _frac=0.0, _contacts=0, _done=False)
+        job.update(_views=0, _phase="camera", _frac=0.0, _contacts=0, _done=False, _decision_mark=decision)
+        if not getattr(robot, "reads_pod_tags", False):
+            # A robot that cannot read tags colours the pod as soon as the job starts (it has nothing to wait for).
+            # The real gantry colours it only once its camera has CONFIRMED which pod this is (see _assess).
+            self._mark_decision(job)
+        return True
+
+    def _mark_decision(self, job):
         try:
-            robot.mark_pod_decision(pod["pod_id"], decision)
+            self._robot.mark_pod_decision(job["pod"]["pod_id"], job.get("_decision_mark"))
         except Exception:
             pass
-        return True
 
     def _drop_running(self, job):
         with self._condition:
             self._running.pop(job["pod"]["pod_id"], None)
         self._dec_outstanding()
 
-    def _assess(self, pod):
-        """The gantry's camera agent calls this when it is in position at a pod."""
+    def _feed(self, entry):
+        with self._condition:
+            self._tag_seq += 1
+            entry["seq"], entry["t"] = self._tag_seq, time.time()
+            self._tag_feed.append(entry)
+
+    def tag_feed_since(self, seq):
+        """-> (entries newer than `seq`, latest seq). The Pod tags monitor polls this: 'view' entries are camera frames as
+        they are captured, 'read' entries are finished tag readings (with the evidence needed to draw them)."""
+        with self._condition:
+            return [e for e in self._tag_feed if e["seq"] > seq], self._tag_seq
+
+    def tag_read(self, app_pod_id):
+        """What the robot's camera read off this pod's tag during its latest visit: a dict with state
+        ('confirmed' | 'failed'), label, expected, confidence, agreeing_views, views_total, reason -- or None while the
+        camera has not been to the pod yet. (The application shows this above the pod's analysis.)"""
+        with self._condition:
+            read = self._tag_reads.get(app_pod_id)
+            return dict(read) if read else None
+
+    @staticmethod
+    def _expected_app_pod_id(job):
+        """The pod the application dispatched this job for (what the camera's tag read is checked against)."""
+        return job.get("app_pod_id") or (job.get("order") or {}).get("pod_id")
+
+    def _check_identity(self, job, identity):
+        """Compare what the camera READ off the pod's tag with what the application DISPATCHED. Returns None for a
+        robot that reads no tags, else {ok, label, expected, reason, confidence, agreeing_views, views_total}."""
+        if identity is None:
+            return None
+        label = identity.get("label") if identity.get("confirmed") else None
+        expected = self._expected_app_pod_id(job)
+        reason = None
+        record = None
+        if label is not None:
+            try:                                  # the tag IS the key to the pod's data folder: look up what pod this is
+                record = pod_data.load_pod(label)
+            except KeyError:
+                reason = f"tag {label} has no pod data folder"
+        dispatched_crop = (job.get("order") or {}).get("crop_type")
+        if label is None:
+            reason = f"pod tag could not be read ({identity.get('reason') or 'no reason given'})"
+        elif not identity.get("at_expected_location"):
+            reason = f"camera read tag {label} where {identity.get('location_label')} should be"
+        elif reason is None and is_valid_label(expected) and label != expected:
+            reason = f"camera read tag {label} but {expected} was dispatched"
+        elif reason is None and dispatched_crop and record and str(dispatched_crop).lower() != str(record["crop_type"]).lower():
+            reason = f"tag {label} belongs to a {record['crop_type']} pod but a {dispatched_crop} order was dispatched"
+        return {"ok": reason is None, "label": label, "expected": expected, "reason": reason,
+                "confidence": identity.get("confidence"), "agreeing_views": identity.get("agreeing_views"),
+                "views_total": identity.get("views_total"),
+                "crop_type": record["crop_type"] if record else None, "dispatched_crop": dispatched_crop,
+                "record": ({k: record.get(k) for k in ("crop_type", "rail", "station_letter", "side", "slot", "trough_id")}
+                           | {"folder": record["folder"], "photos": len(record.get("trajectory") or []) or 1})
+                          if record else None}
+
+    def _assess(self, pod, identity=None):
+        """The gantry's camera agent calls this when it is in position at a pod and has read its tag.
+
+        `identity` is the camera's own OpenCV read of the number printed on the pod. When it is given, THAT is what
+        the pod is: the application's scores and decision are attached to the pod the camera actually saw, and only
+        if it matches the pod the job was dispatched for. An unreadable or mismatching tag withholds all work on the
+        pod (no service, no scores attached) and fails the order rather than acting on the wrong pod."""
         with self._condition:
             job = self._running.get(pod["pod_id"])
         if job is None:
             return {"service_action": None, "camera_dwell": 0.0}
+        verdict = self._check_identity(job, identity)
+        if verdict is None:                                   # robot without tag reading: positional identity, as before
+            return self._assess_job(job)
+        job["_identity"] = verdict
+        self._feed({"kind": "read", "pod_id": pod["pod_id"], "side": pod["side"], "row": pod["row"], "col": pod["col"],
+                    "layer": pod["layer"], "state": "confirmed" if verdict["ok"] else "failed", "label": verdict["label"],
+                    "expected": verdict["expected"], "reason": verdict["reason"], "confidence": verdict["confidence"],
+                    "agreeing_views": verdict["agreeing_views"], "views_total": verdict["views_total"],
+                    "crop_type": verdict["crop_type"], "dispatched_crop": verdict["dispatched_crop"],
+                    "record": verdict["record"], "per_view": identity.get("per_view"),
+                    "evidence": identity.get("evidence_data")})
+        with self._condition:
+            self._tag_reads[verdict["expected"] or verdict["label"]] = {
+                "state": "confirmed" if verdict["ok"] else "failed", "label": verdict["label"],
+                "expected": verdict["expected"], "confidence": verdict["confidence"],
+                "agreeing_views": verdict["agreeing_views"], "views_total": verdict["views_total"],
+                "reason": verdict["reason"], "crop_type": verdict["crop_type"], "dispatched_crop": verdict["dispatched_crop"],
+                "record": verdict["record"], "per_view": identity.get("per_view"),
+                "location": f"rail {pod['row'] + 1} station {'LMR'[pod['col']]} layer {pod['layer'] + 1} {pod['side']}",
+                "sheet_png": identity.get("sheet_png")}      # the picture of the reading the application can show
+        if self.on_tag_read is not None:                      # e.g. the farm's cloud database: facts only, never a picture
+            try:
+                self.on_tag_read({k: v for k, v in self._tag_reads[verdict["expected"] or verdict["label"]].items()
+                                  if k != "sheet_png"})
+            except Exception:
+                pass
+        if not verdict["ok"]:
+            self.on_log(f"Pod identity NOT confirmed at {verdict['expected']}: {verdict['reason']}. "
+                        f"No work done on this pod.", "error")
+            return {"service_action": None, "camera_dwell": 0.0, "skip_reason": "pod tag not confirmed: " + verdict["reason"],
+                    "identity_ok": False, "identity": verdict, "model_scores": {}, "classification": {}, "decision": {},
+                    "application_pod_id": None}
+        self.on_log(f"Camera read tag {verdict['label']} ({verdict['agreeing_views']}/{verdict['views_total']} views, "
+                    f"confidence {verdict['confidence']:.2f}) - matches the dispatched pod. Pod record "
+                    f"pybullet_sim/pods/{verdict['label']}/ -> {verdict['crop_type']}", "ok")
+        self._mark_decision(job)
+        result = dict(self._assess_job(job))
+        result.update(application_pod_id=verdict["label"], identity_ok=True, identity=verdict,
+                      data_folder=pod_data.pod_folder(verdict["label"]))
+        return result
+
+    def _assess_job(self, job):
         if job["kind"] == "visit":
             classification = dict(job.get("classification") or {})
             return {
@@ -573,6 +693,11 @@ class PyBulletBridge:
         pod_id = event.get("pod_id")
         if not pod_id:
             return
+        if event.get("kind") == "camera_frame":              # live camera feed: no job bookkeeping, just pass it on
+            self._feed({"kind": "view", "pod_id": pod_id, "side": event.get("side"), "view": event.get("view"),
+                        "views": event.get("views"), "jpg": event.get("jpg"), "row": event.get("row"),
+                        "col": event.get("col"), "layer": event.get("layer")})
+            return
         with self._condition:
             job = self._running.get(pod_id)
         if job is None or job.get("_done"):
@@ -593,9 +718,14 @@ class PyBulletBridge:
         elif kind == "service_contact":
             job["_contacts"] = int(job.get("_contacts", 0)) + 1
             frac = max(frac, 0.45 + 0.50 * min(1.0, job["_contacts"] / 3.0))
+        elif kind == "pod_identified":
+            job["_tag_read"] = event.get("label")
         elif kind in ("service_done", "service_skip"):
             if kind == "service_skip" and worker and job.get("_phase") != "service":
                 return                                  # a skip before the camera finished is not the end of the job
+            if kind == "service_skip" and (job.get("_identity") or {}).get("ok") is False:
+                self._finish_job(job, False, "pod identity not confirmed: " + str(job["_identity"].get("reason")))
+                return
             self._finish_job(job, True, "executed by PyBullet gantry")
             return
         job["_frac"] = frac
@@ -663,6 +793,12 @@ class PyBulletBridge:
                     keep.append(job)
                     continue
                 self.on_log(f"Localization record not ready for {job['app_pod_id']}; scores retained in app log", "warn")
+                self._dec_outstanding()
+                continue
+            read = (record.get("identity") or {})
+            if read.get("confirmed") and read.get("label") != job.get("app_pod_id"):
+                self.on_log(f"Scores for {job['app_pod_id']} NOT attached: the camera read tag {read.get('label')} "
+                            f"at that location", "warn")
                 self._dec_outstanding()
                 continue
             record["model_scores"] = dict(job.get("classification") or {})

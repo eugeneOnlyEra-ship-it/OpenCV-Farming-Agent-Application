@@ -1,0 +1,53 @@
+{
+ "pod_id": "R2-R-F2",
+ "tag": "R2-R-F2",
+ "index": 41,
+ "crop_type": "mushroom",
+ "rail": 2,
+ "station": 2,
+ "station_letter": "R",
+ "side": "front",
+ "slot": 2,
+ "trough_id": "R2-R-F",
+ "sim_location": {
+  "row": 1,
+  "col": 2,
+  "layer": 1,
+  "side": "front",
+  "sim_pod_id": "R1C2-L1-F"
+ },
+ "ground_truth": {
+  "verified_aspect": "growth",
+  "growth_stage": "Juvenile",
+  "diseased": null,
+  "disease_name": null
+ },
+ "image": "mushroom_R2-R-F2_v1_Juvenile_IMG_7775_MOV-0064_jpg.rf.9d533839cf2c72b88ad51856af1c8709.jpg",
+ "trajectory": [
+  {
+   "visit": 1,
+   "growth_stage": "Juvenile",
+   "image": "mushroom_R2-R-F2_v1_Juvenile_IMG_7775_MOV-0064_jpg.rf.9d533839cf2c72b88ad51856af1c8709.jpg"
+  },
+  {
+   "visit": 2,
+   "growth_stage": "Intermediate",
+   "image": "mushroom_R2-R-F2_v2_Intermediate_IMG_7897_MOV-0045_jpg.rf.778b93d29bff106d5e9f718babdd9704.jpg"
+  },
+  {
+   "visit": 3,
+   "growth_stage": "Harvest",
+   "image": "mushroom_R2-R-F2_v3_Harvest_IMG_7887_MOV-0124_jpg.rf.7f98af2a278ed2abd59c7dc8a84efb14.jpg"
+  },
+  {
+   "visit": 4,
+   "growth_stage": "Harvest",
+   "image": "mushroom_R2-R-F2_v4_Harvest_IMG_7887_MOV-0086_jpg.rf.be1482995aa06b6c2b260c073fd00c25.jpg"
+  },
+  {
+   "visit": 5,
+   "growth_stage": "Harvest",
+   "image": "mushroom_R2-R-F2_v5_Harvest_IMG_7783_MOV-0027_jpg.rf.830ddd69be5e5aa2a29709076227a537.jpg"
+  }
+ ]
+}

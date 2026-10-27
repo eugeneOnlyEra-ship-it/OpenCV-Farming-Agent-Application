@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-L-B2",
+ "tag": "R2-L-B2",
+ "index": 29,
+ "crop_type": "cabbage",
+ "rail": 2,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 2,
+ "trough_id": "R2-L-B",
+ "sim_location": {
+  "row": 1,
+  "col": 0,
+  "layer": 1,
+  "side": "back",
+  "sim_pod_id": "R1C0-L1-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Cabbage-Fusarium_wilt"
+ },
+ "image": "cabbage_disease_Cabbage_Fusarium_wilt_R2-L-B2.jpg"
+}

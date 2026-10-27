@@ -24,9 +24,9 @@ DICTIONARY = cv2.aruco.DICT_4X4_100          # 100 ids >= the 72 pods
 MARKER_CELLS = 6                             # 4x4 payload + 1-cell black border on each side
 MARKER_SIDE_M = 0.066                        # black marker edge (cells are 11 mm)
 PLATE_SIDE_M = 0.088                         # white quiet-zone plate (fits the 0.09 m trough wall)
-MARKER_X_OFFSET_M = 0.0                      # centred on the wall: the three camera views (x = -0.11, 0,
-                                             #   +0.11) then see it from -22, 0, +22 degrees, and the
-                                             #   "serviced" tag (x = -0.19) stays clear of it
+MARKER_X_OFFSET_M = -0.10                    # left of centre: the printed pod tag (pod_labels) takes the right of the wall.
+                                             #   Still inside the camera heads' span (x = -0.11 .. +0.11), so all three views
+                                             #   see it; clear of the "serviced" disc at x = -0.19. (Was 0.0, centred.)
 TILT_DEG = 40.0                              # the tag leans back like a small sign so its face points up
                                              #   toward the camera head (which looks down at ~45 degrees);
                                              #   a flat-on-the-wall tag is foreshortened to ~70 % at 320x240

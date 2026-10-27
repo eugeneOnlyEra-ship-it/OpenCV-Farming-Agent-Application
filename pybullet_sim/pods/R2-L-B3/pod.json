@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-L-B3",
+ "tag": "R2-L-B3",
+ "index": 30,
+ "crop_type": "cabbage",
+ "rail": 2,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 3,
+ "trough_id": "R2-L-B",
+ "sim_location": {
+  "row": 1,
+  "col": 0,
+  "layer": 2,
+  "side": "back",
+  "sim_pod_id": "R1C0-L2-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Cabbage-Powdery_mildew"
+ },
+ "image": "cabbage_disease_Cabbage_Powdery_mildew_R2-L-B3.jpg"
+}

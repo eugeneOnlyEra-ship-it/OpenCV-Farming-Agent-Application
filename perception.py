@@ -44,7 +44,7 @@ MODEL_REGISTRY = {
         "growth": {
             "path": "cabbage_growth_stage_v2.onnx",
             "classes": {0: "S2_3", 1: "S4_5", 2: "S6_7", 3: "S8", 4: "S9"},
-            "harvest_stage": "S9",  # unverified interpretation: "9+ leaves / head formation-maturity"
+            "harvest_stage": "S9",  # human-approved: "Mature / harvest-ready"
         },
         "disease": {
             "path": "cabbage_disease.onnx",
@@ -106,6 +106,34 @@ MODEL_REGISTRY = {
         },
     },
 }
+
+# Human-readable display names for growth-stage codes that aren't already
+# self-explanatory. Lettuce's and mushroom's growth classes are plain
+# English already ("Leafy growth", "Harvest", etc.) and don't need an
+# entry here. Cabbage's S-codes do — these are the names a human
+# reviewer approved after looking directly at 5 real training images per
+# class (see the MODEL_REGISTRY comment above), not a guess.
+HUMAN_GROWTH_STAGE_NAMES = {
+    "cabbage": {
+        "S2_3": "Seedling",
+        "S4_5": "Vegetative / leafy growth",
+        "S6_7": "Early head formation (cupping)",
+        "S8": "Head filling / head development",
+        "S9": "Mature / harvest-ready",
+    },
+}
+
+
+def human_stage_name(crop_type, stage_code):
+    """Display-friendly name for a growth-stage code, e.g. "S6_7" ->
+    "Early head formation (cupping)" for cabbage. Falls back to the raw
+    code unchanged for crops/codes with no mapping (lettuce, mushroom,
+    or None) — this never raises, so it's always safe to call for any
+    pod's growth_stage value."""
+    if stage_code is None:
+        return None
+    return HUMAN_GROWTH_STAGE_NAMES.get(crop_type, {}).get(stage_code, stage_code)
+
 
 _thread_local = threading.local()
 

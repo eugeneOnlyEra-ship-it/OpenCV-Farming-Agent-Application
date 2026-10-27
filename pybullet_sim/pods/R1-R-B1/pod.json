@@ -1,0 +1,26 @@
+{
+ "pod_id": "R1-R-B1",
+ "tag": "R1-R-B1",
+ "index": 20,
+ "crop_type": "mushroom",
+ "rail": 1,
+ "station": 2,
+ "station_letter": "R",
+ "side": "back",
+ "slot": 1,
+ "trough_id": "R1-R-B",
+ "sim_location": {
+  "row": 0,
+  "col": 2,
+  "layer": 0,
+  "side": "back",
+  "sim_pod_id": "R0C2-L0-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": false,
+  "disease_name": null
+ },
+ "image": "mushroom_disease_Healthy_R1-R-B1.jpg"
+}

@@ -35,7 +35,7 @@ os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 if a.scratch:                       # app_ui chdirs to its own folder, so give it a throwaway copy of the project data
     tmp = tempfile.mkdtemp()
-    for f in ("dynamo_table.json", "pods_manifest.json"):
+    for f in ("dynamo_table.json",):
         shutil.copy(os.path.join(ROOT, f), tmp)
     print("note: --scratch only protects dynamo_table.json; crop ages are saved next to it in the project folder")
 os.makedirs(a.out, exist_ok=True)

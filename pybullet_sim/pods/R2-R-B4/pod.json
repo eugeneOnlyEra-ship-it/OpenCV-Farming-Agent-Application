@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-R-B4",
+ "tag": "R2-R-B4",
+ "index": 47,
+ "crop_type": "mushroom",
+ "rail": 2,
+ "station": 2,
+ "station_letter": "R",
+ "side": "back",
+ "slot": 4,
+ "trough_id": "R2-R-B",
+ "sim_location": {
+  "row": 1,
+  "col": 2,
+  "layer": 3,
+  "side": "back",
+  "sim_pod_id": "R1C2-L3-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Dry Bubble"
+ },
+ "image": "mushroom_disease_Dry_Bubble_R2-R-B4.jpg"
+}

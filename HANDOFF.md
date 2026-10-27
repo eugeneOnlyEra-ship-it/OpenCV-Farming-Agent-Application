@@ -184,9 +184,9 @@ Legend: **O** = original (the user's pipeline, unchanged unless noted) · **N** 
 
 | File | Lines | | Purpose |
 |---|---:|---|---|
-| `perception.py` | 291 | O | ONNX/YOLOv8 inference through `cv2.dnn`: `MODEL_REGISTRY`, `classify_pod()`. **Unchanged** (an earlier edit was reverted, §17). |
+| `perception.py` | 291 | O | ONNX/YOLOv8 inference through `cv2.dnn`: `MODEL_REGISTRY`, `classify_pod()`. Inference unchanged; §19 adds the pure display helper `human_stage_name()` (from the DataPipeline copy). |
 | `agent.py` | 100 | O | `decide_action()` rule table (§5.2). |
-| `pod_registry.py`, `pods_manifest.json` | 150 | O | The 72 pods, photos, ground truth, the legacy per-pod "staircase" trajectories. |
+| `pod_registry.py` | 150 | O/M | The 72 pods. *Change (§19):* built from `pybullet_sim/pods/<POD_ID>/pod.json` instead of `pods_manifest.json`. |
 | `cloud_pipeline.py` | 164 | M | `LocalCloudClient` (thread pool standing in for Lambda). *Change:* optional `conf_threshold`. |
 | `camera.py` | ~30 | M | `PodCamera.capture_and_submit()`. *Change:* optional `conf_threshold`. |
 | `dynamo_client.py` | 66 | O | `LocalDynamoTable` (JSON file standing in for DynamoDB): per-pod history. |
@@ -205,7 +205,7 @@ Legend: **O** = original (the user's pipeline, unchanged unless noted) · **N** 
 | `requirements.txt` | — | M | Pinned: `opencv-python==5.0.0.93`, `numpy==2.5.3`. |
 | `README.md` | — | M | Run instructions + feature sections (kept in sync with this file). |
 | `models/` | 6 ONNX | O | `{cabbage,lettuce,mushroom}_growth_stage_v2.onnx` and `{cabbage,lettuce,mushroom}_disease.onnx`. |
-| `sample_images/` | many | O | The photos. |
+| `sample_images/`, `pods_manifest.json` | — | — | **Superseded (§19):** photos now live in `pybullet_sim/pods/<POD_ID>/`. Safe to delete. |
 | `dynamo_table.json` | — | O | Saved history (the user's real file — never overwrite/delete in tests). |
 | `dynamo_table_cycle.json` | — | N (generated) | Saved crop ages (created on first run; do not ship it). |
 | `logs/`, `work_orders/` | — | generated | Run logs (CSV/JSON) / per-run orders, outbox and `trace.jsonl`. **`logs/` contains the user's original run logs — never `rm` globs there.** |
@@ -214,7 +214,7 @@ Legend: **O** = original (the user's pipeline, unchanged unless noted) · **N** 
 
 ## 5. The original pipeline (the user's code — understand it before touching anything)
 
-### 5.1 Pods and ground truth (`pod_registry.py` + `pods_manifest.json`)
+### 5.1 Pods and ground truth (`pod_registry.py` + `pybullet_sim/pods/*/pod.json`, see §19)
 `PODS` is a list of 72 dicts: `pod_id, index, rail, station (0/1/2 → `L`/`M`/`R` via `STATION_LABELS`; = cabbage/lettuce/mushroom), side ("front"|"back"),
 trough_id, crop_type, image_path (absolute, resolved from the project folder at import), ground_truth, trajectory`.
 * `ground_truth = {verified_aspect: "growth"|"disease", growth_stage, diseased, disease_name}`. **Only one aspect per pod is verified**:
@@ -627,7 +627,7 @@ Sandbox notes for an assistant that builds in a similar sandbox: no AWS credenti
 
 ### 18.2 Recipes
 * **Add a robot task type:** write `build_<task>(…)` in `worker_planner.py` returning a spec (`task, role, aspect, title, rationale, targets, steps, requires_approval, human_notes, approval_note`); add it to `PRIORITY`, `BLOCKING_TASKS` if the lane should wait, a trigger (`BUILDERS` / a `complete()` hook), UI maps (`TASK_COLOR`, `TASK_LABEL`), and a check in `dev/regression.py`.
-* **Add a crop:** `perception.MODEL_REGISTRY` + ONNX files, pods in `pods_manifest.json`, `STAGE_ORDER`/`STAGE_VISITS` in `crop_cycle.py` (+`HARVEST_MODE`, `DISEASE_CATEGORY` entries in `worker_planner.py`), station letter/colour in the UI.
+* **Add a crop:** `perception.MODEL_REGISTRY` + ONNX files, a pod folder under `pybullet_sim/pods/`, `STAGE_ORDER`/`STAGE_VISITS` in `crop_cycle.py` (+`HARVEST_MODE`, `DISEASE_CATEGORY` entries in `worker_planner.py`), station letter/colour in the UI.
 * **Change crop timing:** edit `STAGE_VISITS` (keys must be every stage before harvest, in order — `_check()` asserts), `SESSION_VISITS`.
 * **Connect real robots:** transport with `.send(dict)` in `OrderBook(transport=…)`; call `begin/advance/complete`; turn off *Simulate robots*.
 * **Real camera frames:** an object with `capture(order, out_dir)`; set `engine.frame_source`; decide whether to log real follow-ups to history/cycle.
@@ -679,3 +679,88 @@ Paste this together with this file (and the project, or at least the code-only s
 **Tests.** `python dev/check_bridge.py` (27 checks, fake gantry, no PyBullet), `python dev/check_gantry_session.py` (15 checks; the real `service_station_live` with PyBullet stubbed), `xvfb-run … python dev/ui_live_check.py [--fallback] [--profile] [--shots dir]` (real app on a virtual display; measures window stalls and front/back overlap), plus `dev/regression.py`. **Not verified:** anything with real PyBullet (physics, rendering, GUI, collisions under the live scheduler; run `dev/integration_smoke.py` and `pybullet_sim/tools/verify_motion.py`), and the hypothesis that PyBullet rendering holds the GIL.
 
 **Known limits.** One gantry = one station at a time; per side, jobs run one after another; a front pod gets 4 visits per run and a back pod 1, so the front side is busier; `App.PAIR_SIDES` interleaves front/back pods in the queue.
+
+
+## 19. Pod tags, vision-based identity, and per-pod data folders (added Oct 2026)
+
+**The user's request.** The simulated camera agent used to be *told* which pod it was at (the bridge mapped the app's pod id to a trough and handed
+the id back through `assess`). They wanted the pod number **printed on the pod in PyBullet** so the agent identifies the pod with **OpenCV**, plus
+each pod's data set stored **in its own folder inside the simulation**, using the DataPipeline package's pod names and data.
+
+**What exists now.**
+* `pybullet_sim/pod_labels.py` — `label_for_pod()`, `render_plate()` (what is printed), `PodLabelReader` (what is read: find border ring → rectify → 7 fixed
+  cells → template match → vote over views). Reads at half scale with a direct numpy NCC (cv2.matchTemplate's per-call FFT overhead made it 10x slower).
+* `GantryRobot._add_pod_label` mounts a textured quad on each trough's aisle wall; `_identify_pod` runs in `_g_camera` after the 3 views, **before** `assess`;
+  `assess(pod, identity=...)` (signature-sniffed, old one-arg callbacks still work); `_g_service` refuses a pod whose tag is not confirmed AT the expected location.
+* `PyBulletBridge._assess/_check_identity`: tag read vs dispatched pod; mismatch/unreadable → no scores, no service, order **FAILED**, error in the app log. The
+  decision colour is applied only after confirmation (`robot.reads_pod_tags`); robots without that attribute (the FakeRobot in `dev/check_bridge.py`) keep the
+  old positional behaviour. Late scores (`_apply_pending_updates`) attach only if the recorded tag matches.
+* `pybullet_sim/pods/<POD_ID>/` (+ `pod_data.py`, `tools/migrate_pod_folders.py`): 72 folders, 216 photos. `pod_registry.PODS` is built from them; pod order
+  (`index`) is the application's trough-by-trough queue order, NOT the DataPipeline manifest's front-then-back order.
+* `crop_cycle.STAGE_PHOTOS`: all of a pod's photos per stage; successive visits in a stage rotate through them (`stage_visit`, `waited` in the saved cycle state).
+  `PHOTOS` keeps its old shape (one path per stage) for the regression suite.
+
+* UI: `PyBulletBridge.tag_read(app_pod_id)` (cleared when new work for the pod is queued) feeds `PodCard.refresh_tag()` -> a "POD TAG" line on the disease `ScorePanel` and the disease `WorkerPanel` (refreshed from `_tick_once`, 250 ms). Clicking it opens `TagReadWindow` (app_ui.py), fed by `bridge.tag_read()['sheet_png']`: `pod_labels.render_reading_sheet()` draws frames+outlined plate+flattened plate+per-cell decode (ASCII only, OpenCV fonts); the gantry encodes it once per pod (`_identify_pod`, `keep_evidence=True`) so raw frames are not retained for all 72 pods. `_check_identity` also looks the tag up in `pod_data` (crop type, record) and, for orders, rejects a crop that differs from the dispatched one. The line is short on purpose: the panel is ~250 px wide and longer text clipped. Verified with the real UI under Xvfb (`dev/ui_screenshots.py` opens the 3-D GUI, so patch `app_ui.PyBulletBridge` to `gui=False` on a headless box).
+
+* Live monitor (`TagMonitorPanel`, the **Pod tags** tab, inside a `ScrollFrame`; polls slowly and skips frame decoding while hidden): gantry emits `camera_frame` events right after each captured view through `_emit_transient` (NOT stored in `robot.events`, so frames do not accumulate), the bridge turns them into `'view'` feed entries and every `_assess` with an identity into a `'read'` entry carrying structured `evidence` (3 JPEG frames + corners, flattened plate PNG, per-cell results). `bridge.tag_feed_since(seq)` is what the window polls (150 ms; deque of 300). The analysis canvas REPLAYS each finished read in stages (reading itself is ~0.1 s); it speeds up with backlog and jumps to the final state at >= 6 waiting. Tk gotcha: a `Label`'s width/height are pixels only if it holds an image, so camera tiles start with a blank `PhotoImage`.
+
+**Gotchas learned the hard way.**
+* PyBullet's texture `v` axis runs bottom-up (first attempt rendered the text upside down); the viewer's right is −X for front pods and +X for back pods.
+* Dark-GREY scene poles (value 60–80) fused with the plate's black border under a 3×3 morphological close; the reader now thresholds < 45 and does no closing.
+* The previous end-of-service handling (`service_skip` ⇒ job "completed") is unchanged for non-identity skips. Per the README an invalid localization should
+  *fail* the order, but the bridge currently completes it. **Not changed here; flag to the user.**
+
+**Behaviour change to expect.** Some pods' curated photos trip the disease model (e.g. R2-M-F4's first lettuce harvest photo, `disease_flag=True`), so that pod gets
+a TREAT order and is harvested a visit later. `dev/regression.py` now anchors its harvest→replant check on the harvest *decision*, not the first ripe scan.
+Existing `dynamo_table.json` history and `dynamo_table_cycle.json` ages belong to the old photos; delete them for a clean run (the app has a Reset-history button).
+
+**Tests.** `python dev/check_pod_tags.py` (needs pybullet, ~40 s): data layer, 72/72 tag reads on real renders, damaged-tag fail-safety, bridge end-to-end,
+removed/swapped-tag sabotage. `python dev/check_bridge.py`, `dev/check_gantry_session.py`, `dev/integration_smoke.py`, `dev/regression.py` all pass.
+
+
+## 20. Cloud database: pod identity -> crop, growth, inspections, disease, treatments, harvest (added Oct 2026)
+
+**The user's request.** Implement the cloud pipeline (for the OpenCV AI Competition 2026 with AWS: OpenCV 5 + a meaningful AWS component) so a pod's identity is
+connected to its crop type, growth stage, inspection results, disease status, treatment history and harvest readiness in a cloud database; **no images in the
+cloud, they stay on the computer.** (The existing `dynamo_client.LocalDynamoTable` / `cloud_pipeline.LocalCloudClient` were the intended seam; they still do the
+local trend history and the simulated frame->score loop and are unchanged. The images-to-S3/Lambda design was NOT built, by the user's choice.)
+
+**Files.** `cloud_model.py` (pure: table definition, key helpers, `assert_no_images`, event builders, `apply_event` = the profile rules), `cloud_backends.py`
+(`DynamoBackend` boto3, `LocalBackend` JSON file with the same semantics), `cloud_sync.py` (`FarmCloudStore`, `CloudSync` queue+retry+outbox, `FarmCloud` facade,
+`config_from_env`), `cloud_cli.py`, `aws/farm_table.yaml` (+ `iam_policy.json`, `DEPLOY.md`), `dev/check_cloud.py`, `dev/requirements-dev.txt`.
+
+**Wiring (all best-effort, never raise, never block).** `FarmEngine.farm_cloud` (param `cloud=` for tests); `farm_engine._scan` -> `record_inspection(kind="scan")`;
+the follow-up scan -> `kind="followup"`; `OrderBook.on_event` (new hook in `_trace`, fires on every order step) -> `record_order_event`; `PyBulletBridge.on_tag_read`
+(new hook in `_assess`) -> `record_tag_read`, wired by the `FarmEngine.simulation_bridge` property setter. `_finalize` calls `farm_cloud.close()` (drains).
+UI: `☁` button (state text refreshed in `_tick_once`) + `CloudPanel`, the **Cloud** tab (reads back from the store, in a thread: AWS reads are network calls; it reads only while the tab is visible, and once when opened).
+
+### Merge note (Oct 26 2026): tabs and wall layout
+* Notebook is now Operations(0) | Calibration(1) | Pod tags(2) | Cloud(3) | Log(4) | Settings(5); the `_*_tab_index` attributes in `App._build_body` hold the indices. The toolbar ☁ button only shows sync state and selects the Cloud tab.
+* **Wall layout.** The ArUco marker (`pod_markers`) and the printed pod tag (`pod_labels`) share the aisle-facing trough wall (0.44 m long). Centred, the marker hid ~30 % of the tag and no view could be read. Now: "serviced" disc x -0.21..-0.17, marker plate x -0.144..-0.056 (`MARKER_X_OFFSET_M = -0.10`), tag x -0.045..+0.21 (`PLATE_W_M = 0.255`, `PLATE_X_OFFSET_M = 0.0825`). Checked with a synthetic render through the real reader/detector (60/60 tag reads; marker seen in >= 2 of 3 views; localization only needs one). **Not yet run against PyBullet**: run `python dev/check_pod_tags.py` and the localization checks after pulling this.
+
+**Design facts worth knowing.**
+* One table, `pk=POD#<tag>`, `sk` = `PROFILE` | `INSPECTION#<ts>#<visit>` | `ORDER#<created>#<id>` | `TAGREAD#<ts>`; sparse GSIs `gsi_crop`, `gsi_status`.
+  **Order ids restart at WO-0001 every run, so `created` is in the order's sort key** (else runs overwrite each other). It must be STABLE: undated hand-built orders
+  fall back to the literal "undated" (a moving fallback once split one order into two items).
+* The profile is maintained from a per-pod in-memory mirror by ONE writer (`FarmCloudStore.apply`); the mirror is committed only after the writes succeed, so a retry
+  never double-counts; first touch hydrates from the table (restarts continue). A pod the table has never seen writes EVERY attribute (an early bug diffed against
+  defaults and skipped default-valued ones). `None` means REMOVE the attribute: both backends must do this (the local one once cleaned `None` away first).
+* Absent attributes are normal (e.g. a back pod with no growth stage): read with `.get()`.
+* Images: `image_name` + `image_sha256` only. The reset button never touches the cloud. Local-file mode lives next to the history file (`<history>_cloud.json`).
+* Only 5 DynamoDB calls are made (Put/Update/Get/Query/DescribeTable): the IAM policy and a test pin this.
+
+**Not done / honest limits.** Never run against real AWS (no access here): the first real run is the real test (`python cloud_cli.py ping`). The competition also asks for a
+working web endpoint: that is now `aws/lambda/farm_api.py` + `aws/farm_api.yaml` (below), also never deployed to real AWS.
+Single-writer only. The model/photo analysis still runs locally (by design: images stay here), so the AWS part of the architecture is persistence, not inference.
+
+**Tests.** `python dev/check_cloud.py [section numbers]` (needs boto3, moto, models/, pybullet; ~3 min). Fake credentials are set so a real account can't be hit.
+
+### 20.1 The read-only web API (added after 20)
+`aws/lambda/farm_api.py` (Lambda, python3.12, boto3 from the runtime; no dependencies) behind an API Gateway **HTTP API** (payload v2; routes `GET /health`,
+`GET /pods/{tag}`, `GET /pods`), deployed by `aws/farm_api.yaml`. The code is INLINED in the template (`ZipFile`, limit 4096 characters, now ~4020): no zip/S3/SAM.
+**After editing `farm_api.py` run `python aws/sync_inline_code.py`**; `dev/check_cloud_api.py` fails if the two differ. The Lambda role has only `dynamodb:GetItem` + `Query`
+on the table and `/index/*` (a test pins this, and that the source has no write/scan call). Public by default (that is the point for a judge); optional `ApiKey` parameter
+(`x-api-key`, constant-time compare). Throttled (`RateLimit`/`BurstLimit`). 500s never leak details. Output strips `pk/sk/gsi*/x_*` and returns numbers as numbers.
+Gotchas: validate with `re.fullmatch` (a `$` anchor accepts a trailing newline; found by the tests); the tag-read events create a profile for the pod they are about even when
+no inspection has happened (so `GET /pods/<tag>` can be 200 for a pod with only a tag read). Not covered: a real deployment; list endpoints read at most one page (1 MB) per
+index query, fine for 72 pods. `python dev/check_cloud_api.py` (~3 s).

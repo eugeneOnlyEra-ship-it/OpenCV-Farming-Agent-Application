@@ -5,3 +5,4 @@ numpy==2.5.3
 
 # Physical gantry/agent simulation integrated with the Tkinter application
 pybullet==3.2.7
+boto3==1.43.118          # cloud database (DynamoDB); only used when FARM_DDB_TABLE is set

@@ -427,6 +427,7 @@ class OrderBook:
         self._loop_pending = {}                   # RECAPTURE order id -> pod, until its follow-up frame is analysed
         self.on_replant = None                    # engine hook: a REPLANT job is finishing (restart the pod's crop cycle)
         self.on_complete = None                   # engine hook: called when a RECAPTURE / VERIFY order finishes
+        self.on_event = None                      # engine hook: (event, order, extra) on EVERY order step (the cloud history)
 
     # ----- planning --------------------------------------------------------
     @staticmethod
@@ -835,6 +836,11 @@ class OrderBook:
             pass
 
     def _trace(self, event, o, extra=None):
+        if self.on_event is not None:             # best effort and non-blocking: a database problem must not touch orders
+            try:
+                self.on_event(event, o, extra)
+            except Exception:
+                pass
         try:
             os.makedirs(self.out_dir, exist_ok=True)
             rec = {"ts": _now(), "event": event, "order_id": o.order_id, "task": o.task, "agent": o.agent,

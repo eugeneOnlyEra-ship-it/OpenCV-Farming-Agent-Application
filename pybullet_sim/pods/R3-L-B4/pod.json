@@ -1,0 +1,26 @@
+{
+ "pod_id": "R3-L-B4",
+ "tag": "R3-L-B4",
+ "index": 55,
+ "crop_type": "cabbage",
+ "rail": 3,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 4,
+ "trough_id": "R3-L-B",
+ "sim_location": {
+  "row": 2,
+  "col": 0,
+  "layer": 3,
+  "side": "back",
+  "sim_pod_id": "R2C0-L3-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Cabbage-Bacterial_leaf_spot"
+ },
+ "image": "cabbage_disease_Cabbage_Bacterial_leaf_spot_R3-L-B4.jpg"
+}

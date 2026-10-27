@@ -1,5 +1,5 @@
-"""The two-camera rig on each camera agent's head, and its calibration with OpenCV 5's
-calibrateMultiviewExtended.
+"""The two-camera rig on each camera agent's head and its stereo calibration.
+Uses OpenCV 5's multiview solver when available, with an OpenCV 4 stereoCalibrate fallback.
 
 Each camera agent's head carries TWO cameras rigidly mounted side by side (A = left, B = right),
 BASELINE_M apart and looking the same way. Four cameras in total: two per camera agent (front and back).
@@ -91,32 +91,65 @@ def detect_pair(frame_a, frame_b):
 
 
 def solve_rig(pairs, image_size):
-    """cv2.calibrateMultiviewExtended on detected chessboard pairs [(corners_a, corners_b), ...]. Each pair is one
-    simultaneous view of the board by both cameras. Returns the calibration dict."""
+    """Calibrate from detected chessboard pairs [(corners_a, corners_b), ...]. Each pair is one
+    simultaneous view of the board by both cameras. Uses the multiview solver when available and a
+    standard per-camera + stereo solve otherwise. Returns the calibration dict."""
     n = len(pairs)
     if n < 6:
         raise RuntimeError(f"only {n} frames had the board visible to both cameras (need >= 6)")
     obj = [board_object_points() for _ in pairs]
     pts_a = [p[0] for p in pairs]
     pts_b = [p[1] for p in pairs]
-    mask = np.ones((2, n), np.uint8)
-    models = np.full((2, 1), cv2.CALIB_MODEL_PINHOLE, np.uint8)
-    # the simulator renders an ideal pinhole, so fit focal length + principal point only
-    flags = np.full((2, 1), cv2.CALIB_ZERO_TANGENT_DIST | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3,
-                    np.int32)
-    out = cv2.calibrateMultiviewExtended(obj, [pts_a, pts_b], [tuple(image_size)] * 2, mask, models,
-                                         None, None, None, None, None, None, None, None, flags)
-    rms, Ks, Ds, Rs, Ts = out[:5]
-    R_ba, _ = cv2.Rodrigues(np.asarray(Rs[1], dtype=float).reshape(3, 1))   # camera-A coords -> camera-B coords
-    T_ba = np.asarray(Ts[1], dtype=float).reshape(3)
+    # OpenCV 5 builds may expose calibrateMultiviewExtended. The currently common
+    # OpenCV 4.x Python wheels do not, so use the equivalent standard calibration
+    # sequence there instead of failing before calibration can start.
+    if hasattr(cv2, "calibrateMultiviewExtended") and hasattr(cv2, "CALIB_MODEL_PINHOLE"):
+        solver = "calibrateMultiviewExtended"
+        mask = np.ones((2, n), np.uint8)
+        models = np.full((2, 1), cv2.CALIB_MODEL_PINHOLE, np.uint8)
+        # The simulator renders an ideal pinhole, so fit focal length + principal point only.
+        flags = np.full((2, 1), cv2.CALIB_ZERO_TANGENT_DIST | cv2.CALIB_FIX_K1 | cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3,
+                        np.int32)
+        out = cv2.calibrateMultiviewExtended(obj, [pts_a, pts_b], [tuple(image_size)] * 2, mask, models,
+                                             None, None, None, None, None, None, None, None, flags)
+        rms, Ks, Ds, Rs, Ts = out[:5]
+        R_ba, _ = cv2.Rodrigues(np.asarray(Rs[1], dtype=float).reshape(3, 1))
+        T_ba = np.asarray(Ts[1], dtype=float).reshape(3)
+        dist_a = np.asarray(Ds[0], dtype=float).reshape(-1)
+        dist_b = np.asarray(Ds[1], dtype=float).reshape(-1)
+        K_a = np.asarray(Ks[0], dtype=float).reshape(3, 3)
+        K_b = np.asarray(Ks[1], dtype=float).reshape(3, 3)
+    else:
+        solver = "calibrateCamera+stereoCalibrate"
+        # OpenCV 4.x fallback: calibrate each camera against the same board poses,
+        # then solve the fixed stereo transform. This returns R,T mapping points
+        # from camera A coordinates into camera B coordinates, matching R_ba/T_ba.
+        calib_flags = (cv2.CALIB_ZERO_TANGENT_DIST | cv2.CALIB_FIX_K1 |
+                       cv2.CALIB_FIX_K2 | cv2.CALIB_FIX_K3)
+        rms_a, K_a, dist_a, _, _ = cv2.calibrateCamera(
+            obj, pts_a, tuple(image_size), None, None, flags=calib_flags)
+        rms_b, K_b, dist_b, _, _ = cv2.calibrateCamera(
+            obj, pts_b, tuple(image_size), None, None, flags=calib_flags)
+        stereo_flags = cv2.CALIB_FIX_INTRINSIC
+        rms, K_a, dist_a, K_b, dist_b, R_ba, T_ba, _, _ = cv2.stereoCalibrate(
+            obj, pts_a, pts_b, K_a, dist_a, K_b, dist_b, tuple(image_size),
+            criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-7),
+            flags=stereo_flags)
+        dist_a = np.asarray(dist_a, dtype=float).reshape(-1)
+        dist_b = np.asarray(dist_b, dtype=float).reshape(-1)
+        K_a = np.asarray(K_a, dtype=float).reshape(3, 3)
+        K_b = np.asarray(K_b, dtype=float).reshape(3, 3)
+        R_ba = np.asarray(R_ba, dtype=float).reshape(3, 3)
+        T_ba = np.asarray(T_ba, dtype=float).reshape(3)
     return {
         "image_size": [int(image_size[0]), int(image_size[1])],
         "frames_used": n,
         "rms_px": float(rms),
-        "K_a": np.asarray(Ks[0], dtype=float).reshape(3, 3).tolist(),
-        "K_b": np.asarray(Ks[1], dtype=float).reshape(3, 3).tolist(),
-        "dist_a": np.asarray(Ds[0], dtype=float).reshape(-1).tolist(),
-        "dist_b": np.asarray(Ds[1], dtype=float).reshape(-1).tolist(),
+        "solver": solver,
+        "K_a": K_a.tolist(),
+        "K_b": K_b.tolist(),
+        "dist_a": dist_a.tolist(),
+        "dist_b": dist_b.tolist(),
         "R_ba": R_ba.tolist(),
         "T_ba": T_ba.tolist(),
         "baseline_m": float(np.linalg.norm(T_ba)),
@@ -157,7 +190,32 @@ def load_saved(project_root, image_size):
         rig = load_rig(path)
     except Exception:                                       # noqa: BLE001
         return None, "unreadable"
-    if (rig.get("image_size") == [int(image_size[0]), int(image_size[1])]
-            and abs(rig.get("designed_baseline_m", -1) - BASELINE_M) < 1e-9):
-        return rig, "ok"
-    return None, "stale"
+    if (rig.get("image_size") != [int(image_size[0]), int(image_size[1])]
+            or abs(rig.get("designed_baseline_m", -1) - BASELINE_M) >= 1e-9):
+        return None, "stale"
+
+    # Do not let a malformed or poorly constrained file silently enable the second
+    # camera. The synthetic rig has a known 40 mm baseline and should calibrate to
+    # a small reprojection error; real camera setups can relax these limits later.
+    try:
+        rms = float(rig["rms_px"])
+        baseline = float(rig["baseline_m"])
+        Ka = np.asarray(rig["K_a"], dtype=float).reshape(3, 3)
+        Kb = np.asarray(rig["K_b"], dtype=float).reshape(3, 3)
+        R = np.asarray(rig["R_ba"], dtype=float).reshape(3, 3)
+        T = np.asarray(rig["T_ba"], dtype=float).reshape(3)
+        values = np.concatenate(([rms, baseline], Ka.ravel(), Kb.ravel(), R.ravel(), T.ravel()))
+        if not np.isfinite(values).all():
+            return None, "poor_quality"
+        if rms < 0 or rms > 2.0 or not (BASELINE_M * 0.5 <= baseline <= BASELINE_M * 1.5):
+            return None, "poor_quality"
+        if abs(np.linalg.norm(T) - baseline) > 0.002:
+            return None, "poor_quality"
+        for K in (Ka, Kb):
+            if K[0, 0] <= 0 or K[1, 1] <= 0 or not (-0.2 * image_size[0] <= K[0, 2] <= 1.2 * image_size[0]) or not (-0.2 * image_size[1] <= K[1, 2] <= 1.2 * image_size[1]):
+                return None, "poor_quality"
+        if abs(np.linalg.det(R) - 1.0) > 0.02 or np.linalg.norm(R.T @ R - np.eye(3)) > 0.02:
+            return None, "poor_quality"
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None, "unreadable"
+    return rig, "ok"

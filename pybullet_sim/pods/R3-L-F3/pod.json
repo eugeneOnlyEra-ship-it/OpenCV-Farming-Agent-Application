@@ -1,0 +1,53 @@
+{
+ "pod_id": "R3-L-F3",
+ "tag": "R3-L-F3",
+ "index": 50,
+ "crop_type": "cabbage",
+ "rail": 3,
+ "station": 0,
+ "station_letter": "L",
+ "side": "front",
+ "slot": 3,
+ "trough_id": "R3-L-F",
+ "sim_location": {
+  "row": 2,
+  "col": 0,
+  "layer": 2,
+  "side": "front",
+  "sim_pod_id": "R2C0-L2-F"
+ },
+ "ground_truth": {
+  "verified_aspect": "growth",
+  "growth_stage": "S2_3",
+  "diseased": null,
+  "disease_name": null
+ },
+ "image": "cabbage_R3-L-F3_v1_S2_3_img367_20220909_Yoro_Yumebutai_1000x1000_4_jpeg.rf.9bf01f9c4bca3fc501d2be866a0e33df_head1.jpg",
+ "trajectory": [
+  {
+   "visit": 1,
+   "growth_stage": "S2_3",
+   "image": "cabbage_R3-L-F3_v1_S2_3_img367_20220909_Yoro_Yumebutai_1000x1000_4_jpeg.rf.9bf01f9c4bca3fc501d2be866a0e33df_head1.jpg"
+  },
+  {
+   "visit": 2,
+   "growth_stage": "S4_5",
+   "image": "cabbage_R3-L-F3_v2_S4_5_img214_20211005_Sunomata_OkinaSP_1000x1000_6_jpeg.rf.7276d724ee9d7dd57aa24062ea56b279_head1.jpg"
+  },
+  {
+   "visit": 3,
+   "growth_stage": "S6_7",
+   "image": "cabbage_R3-L-F3_v3_S6_7_img287_20211027_Sunomata_TCA422_1000x1000_4_jpeg.rf.b2cc7bd1ea7754d9b7b6f97398e633cd_head0.jpg"
+  },
+  {
+   "visit": 4,
+   "growth_stage": "S8",
+   "image": "cabbage_R3-L-F3_v4_S8_img280_20211027_Kaizu_OkinaSP_1000x1000_8_jpeg.rf.6431171af8b677663a611a4b5136a510_head1.jpg"
+  },
+  {
+   "visit": 5,
+   "growth_stage": "S9",
+   "image": "cabbage_R3-L-F3_v5_S9_img332_20211114_Yoro_Suiryoku_1000x1000_5_jpeg.rf.aca50c9cc40a57b8d3aa994ea7dabee4_head0.jpg"
+  }
+ ]
+}

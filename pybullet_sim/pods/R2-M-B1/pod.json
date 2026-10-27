@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-M-B1",
+ "tag": "R2-M-B1",
+ "index": 36,
+ "crop_type": "lettuce",
+ "rail": 2,
+ "station": 1,
+ "station_letter": "M",
+ "side": "back",
+ "slot": 1,
+ "trough_id": "R2-M-B",
+ "sim_location": {
+  "row": 1,
+  "col": 1,
+  "layer": 0,
+  "side": "back",
+  "sim_pod_id": "R1C1-L0-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Septoria_Blight_on_lettuce"
+ },
+ "image": "lettuce_disease_Septoria_Blight_on_lettuce_R2-M-B1.jpg"
+}

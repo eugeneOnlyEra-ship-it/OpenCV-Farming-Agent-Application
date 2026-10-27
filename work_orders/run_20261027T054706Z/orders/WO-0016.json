@@ -1,0 +1,129 @@
+{
+  "order_id": "WO-0016",
+  "task": "REPLANT",
+  "role": "worker",
+  "agent": "worker_front",
+  "pod_id": "R1-M-F1",
+  "crop_type": "lettuce",
+  "trough_id": "R1-M-F",
+  "side": "front",
+  "location": "rail 1 \u00b7 trough R1-M-F \u00b7 front",
+  "priority": 2,
+  "title": "Replant lettuce at R1-M-F1",
+  "rationale": "Harvest WO-0014 finished: the pod is empty, so start the next crop.",
+  "evidence": {
+    "visit": 54,
+    "step": 1,
+    "n_steps": 4,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Lambda-Offline-WorkOrders-Calibration-Output-Fix(1)/OpenCV-Farming-Agent-Application/pybullet_sim/pods/R1-M-F1/lettuce_R1-M-F1_v5_stage_04__Harvest_stage_20230109_092648_jpg.rf.e7db4bd7654a538ef2dcc0f38f03e597_aug1_bright_up.jpg",
+    "image_size": [
+      420,
+      420
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.992,
+    "disease_flag": false,
+    "disease_name": null,
+    "disease_confidence": 0.268,
+    "n_disease_detections": 1,
+    "n_growth_detections": 1,
+    "action": "flag_for_harvest",
+    "reason": "lettuce at stage 04- Harvest stage (0.99 confidence)",
+    "trend": "stage unchanged (stage 04- Harvest stage); disease cleared since last visit",
+    "cycle": {
+      "age": 12,
+      "harvest_age": 12,
+      "stage": "stage 04- Harvest stage",
+      "waiting_for_harvest": true,
+      "cycle": 3,
+      "stage_visit": 1
+    },
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-27T05:53:34+00:00",
+    "rail": 1
+  },
+  "targets": [],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the worker agent to R1-M-F and align with pod R1-M-F1.",
+      "params": {
+        "trough": "R1-M-F",
+        "pod": "R1-M-F1",
+        "side": "front",
+        "rail": 1
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CLEAR_POD",
+      "text": "Remove remaining roots, stalks and old substrate; bag and seal them.",
+      "params": {}
+    },
+    {
+      "seq": 3,
+      "action": "SANITIZE_TOOL",
+      "text": "Sanitize the tool and the pod before planting.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "PLANT",
+      "text": "Plant a new lettuce seedling in R1-M-F1.",
+      "params": {
+        "crop": "lettuce"
+      }
+    },
+    {
+      "seq": 5,
+      "action": "WATER_FEED",
+      "text": "Water / feed with the pod's standard recipe.",
+      "params": {}
+    },
+    {
+      "seq": 6,
+      "action": "REPORT",
+      "text": "Report completion; the pod restarts at the first growth stage.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [
+    "When this job finishes the pod's crop cycle restarts: its next image is stage 1 of the new crop."
+  ],
+  "status": "completed",
+  "progress": 6,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0014",
+  "not_before": "",
+  "created": "2026-10-27T05:54:02+00:00",
+  "updated": "2026-10-27T05:54:48+00:00",
+  "history": [
+    [
+      "2026-10-27T05:54:02+00:00",
+      "approved",
+      "no approval required by policy"
+    ],
+    [
+      "2026-10-27T05:54:02+00:00",
+      "dispatched",
+      "sent to worker_front"
+    ],
+    [
+      "2026-10-27T05:54:12+00:00",
+      "in_progress",
+      "pybullet_gantry started"
+    ],
+    [
+      "2026-10-27T05:54:48+00:00",
+      "completed",
+      "executed by PyBullet gantry"
+    ]
+  ],
+  "ai": {},
+  "outcome": {},
+  "aspect": "growth"
+}

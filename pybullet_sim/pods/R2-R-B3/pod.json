@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-R-B3",
+ "tag": "R2-R-B3",
+ "index": 46,
+ "crop_type": "mushroom",
+ "rail": 2,
+ "station": 2,
+ "station_letter": "R",
+ "side": "back",
+ "slot": 3,
+ "trough_id": "R2-R-B",
+ "sim_location": {
+  "row": 1,
+  "col": 2,
+  "layer": 2,
+  "side": "back",
+  "sim_pod_id": "R1C2-L2-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Bacterial Blotch"
+ },
+ "image": "mushroom_disease_Bacterial_Blotch_R2-R-B3.jpg"
+}

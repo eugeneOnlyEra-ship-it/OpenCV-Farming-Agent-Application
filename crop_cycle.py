@@ -20,8 +20,12 @@ THE MODEL
     Durations are RELATIVE and compressed (one visit = one monitoring pass): cabbage is the slowest crop,
     mushrooms the fastest. They are plain numbers in STAGE_VISITS: edit them freely.
 
+    * VARIETY.  Each pod owns a curated set of real photos (pybullet_sim/pods/<POD_ID>/). Where it has several photos
+      of one stage (lettuce / mushroom keep extra, different harvest-stage photos), successive visits in that stage
+      walk through them instead of repeating one.
+
     Limitation (simulation only): after a replant the pod shows the same pod's stage photos again, i.e. the
-    "new" plant looks like the previous one. There are only ~12 real photos per late stage to work with.
+    "new" plant looks like the previous one. There are only a handful of real photos per pod to work with.
 
 No UI, no robot code: farm_engine.py asks this module which photo a pod shows next.
 """
@@ -106,27 +110,34 @@ def stage_at(crop, age):
 
 
 def _build_photos():
-    """photos[pod_id][stage] -> that pod's photo for the stage. Its own registry photos first; stages it never had
-    (earlier than where it started) are filled from the crop's real photos of that stage, spread across pods."""
+    """-> (photos, stage_photos).
+    stage_photos[pod_id][stage] = ALL of that pod's photos of the stage, in the order of its growth timeline
+    (a pod's own curated set: the data pipeline gives every front pod a real photo for every stage, and extra
+    different photos for the stages a faster crop has to wait in, e.g. lettuce/mushroom at harvest).
+    photos[pod_id][stage] = the first of those (one path per stage).
+    A stage a pod has no photo for (only possible with a hand-edited pod.json) is filled from the crop's real photos
+    of that stage, spread across pods."""
     pool, own = {}, {}
     for p in PODS:
         if not has_cycle(p):
             continue
         crop = p["crop_type"]
-        own[p["pod_id"]] = {corrected(crop, t["growth_stage"]): t["image_path"] for t in p["trajectory"]}
-        own[p["pod_id"]].setdefault(corrected(crop, p["ground_truth"]["growth_stage"]), p["image_path"])
-        for stage, path in own[p["pod_id"]].items():
-            pool.setdefault((crop, stage), set()).add(path)
+        own[p["pod_id"]] = {}
+        for t in p["trajectory"]:
+            own[p["pod_id"]].setdefault(corrected(crop, t["growth_stage"]), []).append(t["image_path"])
+        own[p["pod_id"]].setdefault(corrected(crop, p["ground_truth"]["growth_stage"]), [p["image_path"]])
+        for stage, paths in own[p["pod_id"]].items():
+            pool.setdefault((crop, stage), set()).update(paths)
     for crop in STAGE_VISITS:
         for k, p in enumerate(_front_pods(crop)):
             for stage in stage_order(crop):
                 if stage not in own[p["pod_id"]]:
                     photos = sorted(pool[(crop, stage)])
-                    own[p["pod_id"]][stage] = photos[k % len(photos)]
-    return own
+                    own[p["pod_id"]][stage] = [photos[k % len(photos)]]
+    return {pid: {st: paths[0] for st, paths in d.items()} for pid, d in own.items()}, own
 
 
-PHOTOS = _build_photos()
+PHOTOS, STAGE_PHOTOS = _build_photos()
 
 
 def _initial_ages():
@@ -170,15 +181,20 @@ class CycleStore:
         with self._lock:
             e = self._entry(pod["pod_id"])
             crop, age = pod["crop_type"], e["age"]
-            stage, _ = stage_at(crop, age)
+            stage, start = stage_at(crop, age)
             H = harvest_age(crop)
+            # visits already spent in this stage; a ripe crop (age frozen at H) counts its waiting visits instead
+            in_stage = e.get("waited", 0) if age >= H else age - start
             return {"age": age, "harvest_age": H, "stage": stage, "waiting_for_harvest": age >= H,
-                    "cycle": e["cycles"] + 1}
+                    "cycle": e["cycles"] + 1, "stage_visit": in_stage}
 
     def image(self, pod):
-        """-> (photo path, ground-truth stage of that photo, info) for this pod's NEXT visit."""
+        """-> (photo path, ground-truth stage of that photo, info) for this pod's NEXT visit.
+        When the pod has several photos of the current stage, each visit in that stage shows the next one (never the
+        same photo twice in a row), so a lingering or waiting crop still looks like a real, changing plant."""
         info = self.info(pod)
-        return PHOTOS[pod["pod_id"]][info["stage"]], info["stage"], info
+        photos = STAGE_PHOTOS[pod["pod_id"]][info["stage"]]
+        return photos[info["stage_visit"] % len(photos)], info["stage"], info
 
     def advance(self, pod):
         """One visit has happened. The crop ages, except a ripe crop which keeps waiting for the harvest."""
@@ -186,13 +202,15 @@ class CycleStore:
             e = self._entry(pod["pod_id"])
             if e["age"] < harvest_age(pod["crop_type"]):
                 e["age"] += 1
+            else:
+                e["waited"] = e.get("waited", 0) + 1       # ripe and still waiting: next visit shows a different photo
             self._save()
 
     def reset(self, pod_id):
         """Replanting finished: a new crop at age 0."""
         with self._lock:
             e = self._entry(pod_id)
-            e["age"], e["cycles"] = 0, e["cycles"] + 1
+            e["age"], e["cycles"], e["waited"] = 0, e["cycles"] + 1, 0
             self._save()
 
     def clear(self):

@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Farm Agent API. GET routes read farm records; POST /observations validates OpenCV metadata, stores observations and
+  generates a work order through a separate Lambda. Images stay local; DynamoDB stores only compact metadata.
+
+Parameters:
+  TableName:
+    Type: String
+    Default: FarmPods
+    Description: The DynamoDB table created by farm_table.yaml.
+  ApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >-
+      Optional key for the public GET endpoints. POST /observations uses the separate ObservationApiKey parameter.
+  ObservationApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Required shared secret for POST /observations; if empty, the write endpoint stays disabled.
+  RateLimit:
+    Type: Number
+    Default: 10
+    Description: Sustained requests per second the API accepts (protects your bill from a flood).
+  BurstLimit:
+    Type: Number
+    Default: 20
+    Description: Short-burst allowance above the sustained rate.
+
+Resources:
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"   # CloudWatch logs only
+      Policies:
+        - PolicyName: ReadFarmTable
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadOnly
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}/index/*"
+
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Farm Agent read-only API
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt ApiRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          API_KEY: !Ref ApiKey
+      Code:
+        # The code below is aws/lambda/farm_api.py, inlined so there is nothing to package or upload.
+        # After editing that file run:  python aws/sync_inline_code.py   (dev/check_cloud_api.py fails if they differ)
+        ZipFile: |
+          # Farm Agent read-only API: Lambda behind an API Gateway HTTP API. Reads the farm's DynamoDB table, never writes.
+          # GET /health | GET /pods/{tag} | GET /pods?status=..|crop=..   See aws/DEPLOY.md. Facts only: the table holds no images.
+          import hmac, json, os, re
+          from decimal import Decimal
+          import boto3
+          from boto3.dynamodb.conditions import Key
+
+          T = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
+          API_KEY = os.environ.get("API_KEY", "")
+          TAG = re.compile(r"^R[1-3]-[LMR]-[FB][1-4]$")
+          CROP = re.compile(r"^[a-z]{3,20}$")
+          STATUSES = ("identity_unconfirmed", "treatment_in_progress", "disease_flagged", "verifying_treatment",
+                      "harvest_in_progress", "harvest_ready", "harvested", "growing")
+          BRIEF = ("pod_id", "crop_type", "status", "growth_stage", "disease_status", "harvest_readiness", "tag_state", "updated_at")
+
+
+          def clean(o):
+              if isinstance(o, Decimal):
+                  return int(o) if o == o.to_integral_value() else float(o)
+              if isinstance(o, dict):
+                  return {k: clean(v) for k, v in o.items() if k not in ("pk", "sk") and not k.startswith(("gsi", "x_"))}
+              return [clean(v) for v in o] if isinstance(o, list) else o
+
+
+          def out(code, body):
+              return {"statusCode": code, "body": json.dumps(clean(body)), "headers": {
+                  "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store"}}
+
+
+          def newest(tag, prefix, n):
+              return T.query(KeyConditionExpression=Key("pk").eq("POD#" + tag) & Key("sk").begins_with(prefix),
+                             ScanIndexForward=False, Limit=n)["Items"]
+
+
+          def handler(event, context):
+              try:
+                  if API_KEY and not hmac.compare_digest((event.get("headers") or {}).get("x-api-key", ""), API_KEY):
+                      return out(401, {"error": "missing or wrong x-api-key header"})
+                  route, q = event.get("routeKey", ""), event.get("queryStringParameters") or {}
+                  if route == "GET /health":
+                      return out(200, {"ok": True})
+                  if route == "GET /pods/{tag}":
+                      tag = (event.get("pathParameters") or {}).get("tag", "")
+                      if not TAG.fullmatch(tag):
+                          return out(400, {"error": "tag must look like R1-L-F1"})
+                      pod = T.get_item(Key={"pk": "POD#" + tag, "sk": "PROFILE"}).get("Item")
+                      if not pod:
+                          return out(404, {"error": "no record for " + tag})
+                      body = {"pod": pod}
+                      if q.get("history") != "0":
+                          n = int(q["limit"]) if q.get("limit", "").isdigit() else 10
+                          n = max(1, min(n, 50))
+                          orders = newest(tag, "ORDER#", 50)
+                          body.update(inspections=newest(tag, "INSPECTION#", n), tag_reads=newest(tag, "TAGREAD#", 5),
+                                      treatments=[o for o in orders if o.get("task") == "TREAT"][:n],
+                                      harvests=[o for o in orders if o.get("task") == "HARVEST"][:n], orders=orders[:n])
+                      return out(200, body)
+                  if route == "GET /pods":
+                      status, crop = q.get("status"), q.get("crop")
+                      if status is not None and status not in STATUSES or crop is not None and not CROP.fullmatch(crop):
+                          return out(400, {"error": "status must be one of " + ", ".join(STATUSES) + "; crop like lettuce"})
+                      keys = ([("gsi_crop", "gsi1pk", "CROP#" + crop)] if crop else
+                              [("gsi_status", "gsi2pk", "STATUS#" + s) for s in ([status] if status else STATUSES)])
+                      pods = [i for ix, k, v in keys for i in T.query(IndexName=ix, KeyConditionExpression=Key(k).eq(v))["Items"]]
+                      counts = {}
+                      for p in pods:
+                          counts[p["status"]] = counts.get(p["status"], 0) + 1
+                      return out(200, {"count": len(pods), "by_status": counts, "pods": [{k: p.get(k) for k in BRIEF} for p in pods]})
+                  return out(404, {"error": "not found"})
+              except Exception as exc:
+                  print("error:", type(exc).__name__, exc)        # the details go to CloudWatch, never to the caller
+                  return out(500, {"error": "internal error"})
+
+  ObservationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: WriteFarmObservationsAndOrders
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem]
+                Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}"
+
+  ObservationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Validates OpenCV crop observations, persists them and generates farm work orders
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt ObservationRole.Arn
+      Timeout: 8
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          API_KEY: !Ref ObservationApiKey
+      Code:
+        ZipFile: |
+          import hmac,json,os,re
+          from datetime import datetime,timezone
+          import boto3
+          T=boto3.resource('dynamodb').Table(os.environ['TABLE_NAME'])
+          KEY=os.environ.get('API_KEY','')
+          BAD={'image','images','frame','pixels','image_bytes','image_b64','base64'}
+          def hasimg(x): return any(k.lower() in BAD or hasimg(v) for k,v in x.items()) if isinstance(x,dict) else any(hasimg(v) for v in x) if isinstance(x,list) else False
+          TAG=re.compile(r'^R[1-3]-[LMR]-[FB][1-4]$')
+          HARVEST={'cabbage':'S9','lettuce':'stage 04- Harvest stage','mushroom':'Harvest'}
+          def out(code,data): return {'statusCode':code,'headers':{'content-type':'application/json','access-control-allow-origin':'*','cache-control':'no-store'},'body':json.dumps(data)}
+          def handler(event,context):
+           try:
+            headers={k.lower():v for k,v in (event.get('headers') or {}).items()}
+            if not KEY: return out(503,{'error':'observation API key is not configured'})
+            if not hmac.compare_digest(headers.get('x-api-key',''),KEY): return out(401,{'error':'unauthorized'})
+            if event.get('routeKey')!='POST /observations': return out(404,{'error':'not found'})
+            try: d=json.loads(event.get('body') or '{}')
+            except ValueError: return out(400,{'error':'body must be JSON'})
+            if not isinstance(d,dict) or hasimg(d): return out(400,{'error':'metadata only'})
+            pid=d.get('pod_id',''); crop=d.get('crop_type',''); oid=d.get('observation_id','')
+            if not TAG.fullmatch(pid) or crop not in HARVEST or not re.fullmatch(r'[A-Za-z0-9-]{8,80}',oid): return out(400,{'error':'bad pod/crop/event id'})
+            try:
+             gc=float(d.get('growth_confidence',0)); dc=float(d.get('disease_confidence',0)); visit=max(0,int(d.get('visit',0))); flag=bool(d.get('disease_flag'))
+             if not 0<=gc<=1 or not 0<=dc<=1: raise ValueError()
+            except (TypeError,ValueError): return out(400,{'error':'bad confidence/visit'})
+            pk='POD#'+pid; obskey='OBSERVATION#'+oid
+            stage=d.get('growth_stage') or ''; ts=str(d.get('timestamp') or datetime.now(timezone.utc).isoformat(timespec='seconds'))
+            if flag and dc>=.5: action,task,reason='flag_for_treatment','TREAT','Disease threshold met.'
+            elif not stage or gc<.4 or (flag and dc<.5): action,task,reason='schedule_frequent_monitoring','VERIFY','Low confidence; inspect again.'
+            elif stage==HARVEST[crop]: action,task,reason='flag_for_harvest','HARVEST','Harvest stage detected.'
+            else: action,task,reason='log_healthy','MONITOR','Monitor.'
+            order={'order_id':'lambda-'+oid[:20],'pod_id':pid,'crop_type':crop,'task':task,'action':action,'status':'awaiting_approval','created':ts,'title':task,'reason':reason}
+            common={'pk':pk,'pod_id':pid,'crop_type':crop,'ts':ts,'visit':visit,'growth_stage':stage,'growth_confidence':gc,'disease_flag':flag,'disease_name':(d.get('disease_name') or '') if flag else '','disease_confidence':dc}
+            T.put_item(Item={**common,'sk':obskey,'entity':'CLOUD_OBSERVATION','action':action,'work_order':order})
+            T.put_item(Item={**common,'sk':'INSPECTION#'+ts+'#'+str(visit).zfill(4),'entity':'INSPECTION','action':action,'reason':reason})
+            T.put_item(Item={'pk':pk,'sk':'ORDER#'+ts+'#'+order['order_id'],'entity':'ORDER','pod_id':pid,'crop_type':crop,'order_id':order['order_id'],'task':task,'status':'awaiting_approval','created':ts,'updated':ts,'action':action})
+            status='disease_flagged' if action=='flag_for_treatment' else 'harvest_ready' if action=='flag_for_harvest' else 'growing'
+            T.update_item(Key={'pk':pk,'sk':'PROFILE'},UpdateExpression='SET entity=:e,pod_id=:p,crop_type=:c,growth_stage=:g,disease_flag=:df,disease_name=:dn,disease_confidence=:dc,last_inspection_at=:ts,last_action=:a,status=:s,gsi1pk=:ck,gsi1sk=:p,gsi2pk=:sk,gsi2sk=:gsk,updated_at=:ts',ExpressionAttributeValues={':e':'PROFILE',':p':pid,':c':crop,':g':stage,':df':flag,':dn':common['disease_name'],':dc':dc,':ts':ts,':a':action,':s':status,':ck':'CROP#'+crop,':sk':'STATUS#'+status,':gsk':ts+'#'+pid})
+            return out(200,{'accepted':True,'stored':True,'source':'aws_lambda','work_order':order})
+           except Exception as e:
+            print('observation error',type(e).__name__,str(e)[:160]); return out(500,{'error':'internal error'})
+
+  ObservationLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ObservationFunction}"
+      RetentionInDays: 14
+
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ApiFunction}"
+      RetentionInDays: 14
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: farm-agent-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: [x-api-key, content-type]
+
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  ObservationIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ObservationFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  RouteObservations:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /observations"
+      Target: !Sub "integrations/${ObservationIntegration}"
+
+  ObservationInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ObservationFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
+
+  RouteHealth:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /health"
+      Target: !Sub "integrations/${Integration}"
+
+  RoutePod:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /pods/{tag}"
+      Target: !Sub "integrations/${Integration}"
+
+  RoutePods:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /pods"
+      Target: !Sub "integrations/${Integration}"
+
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingRateLimit: !Ref RateLimit
+        ThrottlingBurstLimit: !Ref BurstLimit
+
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
+
+Outputs:
+  ApiUrl:
+    Description: The base URL of the API
+    Value: !GetAtt HttpApi.ApiEndpoint
+  TryIt:
+    Description: Open this in a browser (add ?history=0 for just the profile)
+    Value: !Sub "${HttpApi.ApiEndpoint}/pods/R1-L-F1"
+  ObservationEndpoint:
+    Description: POST compact OpenCV observations here; Lambda returns a work order
+    Value: !Sub "${HttpApi.ApiEndpoint}/observations"

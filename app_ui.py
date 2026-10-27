@@ -36,8 +36,10 @@ import functools
 import importlib.util
 import json
 import os
+from collections import deque
 import queue
 import subprocess
+import threading
 import sys
 import threading
 import time
@@ -62,6 +64,8 @@ from capture_io import load_image as _collect_image     # noqa: E402  (C++ pod_c
 # light modules only (no PyBullet, no robot module): the window must never import gantry_robot itself
 from pybullet_sim import sim_options, rig_feed, stereo_rig   # noqa: E402
 from pybullet_sim.multiview_localization import IMAGE_WIDTH as RIG_W, IMAGE_HEIGHT as RIG_H   # noqa: E402
+from pybullet_sim import pod_labels                    # noqa: E402
+from cloud_model import STATUSES as M_STATUSES          # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Look & feel
@@ -198,7 +202,13 @@ class ImageView(tk.Canvas):
         self._after = None
         self.delete("all")
         self._hits = []
-        cw, ch = max(self.winfo_width(), 2), max(self.winfo_height(), 2)
+        cw, ch = self.winfo_width(), self.winfo_height()
+        # Tk can call redraw before grid has assigned the canvas its final size. Drawing
+        # the placeholder at that moment pins it to the top-left and looks like clipped,
+        # overlapping text after the widget expands. Wait for the next Configure event.
+        if cw < 20 or ch < 20:
+            self._after = self.after(80, self.redraw)
+            return
         if self.bgr is None:
             self.create_text(cw / 2, ch / 2, text="no image", fill=C["dim"], font=self.f["small"])
             return
@@ -268,13 +278,19 @@ class ImageView(tk.Canvas):
 # ScorePanel: "Disease detection scores" / "Growth detection scores"
 # ---------------------------------------------------------------------------
 class ScorePanel(tk.Frame):
-    def __init__(self, parent, fonts, title, accent, on_row_click):
+    def __init__(self, parent, fonts, title, accent, on_row_click, show_tag=False):
         super().__init__(parent, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         self.f, self.accent, self.on_row_click = fonts, accent, on_row_click
         self._titles = (title.upper(), title.split()[0].upper())     # full / headline-only
+        # Optional first line: the pod number the robot's camera READ off the pod's printed tag (OpenCV), shown
+        # above the analysis so you can see WHICH pod the scores below belong to.
+        self.tag = None
+        if show_tag:
+            self.tag = tk.Label(self, text="", bg=C["panel"], fg=C["dim"], font=self.f["small_b"], anchor="w")
+            self.tag.pack(fill="x", padx=10, pady=(7, 0))
         self.title_label = tk.Label(self, text=self._titles[0], bg=C["panel"], fg=accent, font=self.f["tiny_b"],
                                     anchor="w")
-        self.title_label.pack(fill="x", padx=10, pady=(8, 0))
+        self.title_label.pack(fill="x", padx=10, pady=(3 if show_tag else 8, 0))
         self.headline = tk.Label(self, text="—", bg=C["panel"], fg=C["text"], font=self.f["head"], anchor="w",
                                  justify="left")
         self.headline.pack(fill="x", padx=10)
@@ -313,10 +329,19 @@ class ScorePanel(tk.Frame):
     def _on_panel_resize(self, e):
         """Short panels (4 pods on screen) drop the secondary lines so the
         score bars keep the room; a bigger window brings them back."""
-        compact = e.height < 215
+        compact = e.height < (235 if self.tag is not None else 215)     # the tag line costs one row
         if compact != self._compact:
             self._compact = compact
             self._layout()
+
+    def set_tag(self, text, color):
+        if self.tag is not None and (self.tag.cget("text"), str(self.tag.cget("fg"))) != (text, color):
+            self.tag.config(text=text, fg=color)
+
+    def on_tag_click(self, callback):
+        if self.tag is not None:
+            self.tag.config(cursor="hand2")
+            self.tag.bind("<Button-1>", lambda e: callback())
 
     def update_content(self, rows, headline, sub, verified, healthy=None, threshold=0.5, highlight=None):
         self.headline.config(text=headline[0], fg=headline[1])
@@ -459,12 +484,16 @@ class WorkerPanel(tk.Frame):
     robot's job on that aspect takes the panel over: every step with its live state, the agent, a progress bar,
     and (when needed) Approve / Reject. '⇄ scores' flips back to the scores while the job runs."""
 
-    def __init__(self, parent, fonts, app, kind, on_flip):
+    def __init__(self, parent, fonts, app, kind, on_flip, show_tag=False):
         super().__init__(parent, bg=C["panel"], highlightthickness=2, highlightbackground=C["line"])
         self.f, self.app, self.kind = fonts, app, kind
         self.shown, self._sig, self._btn_sig, self._frac, self._compact = False, None, None, 0.0, False
+        self.tag = None                      # same "POD TAG" line as the score panel, so it stays visible during a job
+        if show_tag:
+            self.tag = tk.Label(self, text="", bg=C["panel"], fg=C["dim"], font=fonts["small_b"], anchor="w")
+            self.tag.pack(fill="x", padx=10, pady=(7, 0))
         head = tk.Frame(self, bg=C["panel"])
-        head.pack(fill="x", padx=10, pady=(7, 0))
+        head.pack(fill="x", padx=10, pady=(2 if show_tag else 7, 0))
         self.title = tk.Label(head, text="WORKER", bg=C["panel"], fg=C["growth"], font=fonts["tiny_b"], anchor="w")
         self.title.pack(side="left")
         flip = tk.Label(head, text="⇄ scores", bg=C["panel2"], fg=C["muted"], font=fonts["tiny_b"], padx=6,
@@ -490,10 +519,19 @@ class WorkerPanel(tk.Frame):
         self.bind("<Configure>", self._on_resize)
         self.bar.bind("<Configure>", lambda e: self._draw_bar())
 
+    def set_tag(self, text, color):
+        if self.tag is not None and (self.tag.cget("text"), str(self.tag.cget("fg"))) != (text, color):
+            self.tag.config(text=text, fg=color)
+
+    def on_tag_click(self, callback):
+        if self.tag is not None:
+            self.tag.config(cursor="hand2")
+            self.tag.bind("<Button-1>", lambda e: callback())
+
     def _on_resize(self, e):
         for w in (self.headline, self.sub):
             w.config(wraplength=max(120, e.width - 24))
-        compact = e.height < 190
+        compact = e.height < (205 if self.tag is not None else 190)
         if compact != self._compact:
             self._compact = compact
             if compact:
@@ -617,17 +655,20 @@ class PodCard(tk.Frame):
         self.disease_img.grid(row=0, column=img_col, sticky="nsew", pady=(0, 6), padx=(0, 6) if not mirrored else (6, 0))
         self.growth_img.grid(row=1, column=img_col, sticky="nsew", pady=(0, 2), padx=(0, 6) if not mirrored else (6, 0))
         self.disease_panel = ScorePanel(body, self.f, "Disease detection scores", C["disease"],
-                                        lambda n: self.toggle_highlight("disease", n))
+                                        lambda n: self.toggle_highlight("disease", n), show_tag=True)
         self.growth_panel = ScorePanel(body, self.f, "Growth detection scores", C["growth"],
                                        lambda n: self.toggle_highlight("growth", n))
         self.disease_panel.grid(row=0, column=sc_col, sticky="nsew", pady=(0, 6))
         self.growth_panel.grid(row=1, column=sc_col, sticky="nsew", pady=(0, 2))
-        self.disease_worker = WorkerPanel(body, self.f, app, "disease", self.flip_scores)
+        self.disease_worker = WorkerPanel(body, self.f, app, "disease", self.flip_scores, show_tag=True)
         self.growth_worker = WorkerPanel(body, self.f, app, "growth", self.flip_scores)
         self.disease_worker.grid(row=0, column=sc_col, sticky="nsew", pady=(0, 6))
         self.growth_worker.grid(row=1, column=sc_col, sticky="nsew", pady=(0, 2))
         self.disease_worker.grid_remove()
         self.growth_worker.grid_remove()
+        self.disease_panel.on_tag_click(self.open_tag_window)       # click the POD TAG line: see how it was read
+        self.disease_worker.on_tag_click(self.open_tag_window)
+        self._tag_window = None
         self._force = {"disease": None, "growth": None}     # '⇄ scores' pins the scores back for one order
         self._scored_at, self._result_key = 0.0, None
 
@@ -726,6 +767,37 @@ class PodCard(tk.Frame):
                     worker.shown = True
                 worker.show(o)
 
+    def open_tag_window(self):
+        pod = self.view["pod"] if self.view else None
+        if not pod or not self.app.engine:
+            return
+        if self._tag_window is not None and self._tag_window.winfo_exists():
+            self._tag_window.lift()
+            return
+        self._tag_window = TagReadWindow(self.app, pod)
+
+    def refresh_tag(self):
+        """The pod number the robot camera read off this pod's tag, shown above the disease analysis (on the score panel
+        AND on the worker panel that takes its place during a job). The camera reads it AFTER the application has scored
+        the photo (the robot visits later), so this line fills in live. Kept short: the panel is narrow."""
+        pod = self.view["pod"] if self.view else None
+        eng = self.app.engine
+        bridge = eng.simulation_bridge if eng else None
+        if not pod or not eng:
+            text, color = "", C["dim"]
+        elif bridge is None:
+            text, color = "🏷 POD TAG  –", C["dim"]
+        else:
+            read = bridge.tag_read(pod["pod_id"])
+            if read is None:
+                text, color = "🏷 POD TAG  waiting…", C["dim"]
+            elif read["state"] == "confirmed":
+                text, color = f"🏷 POD TAG {read['label']} ✓ {read['agreeing_views']}/{read['views_total']} ▸", C["good"]
+            else:
+                text, color = "🏷 POD TAG ✗ NOT CONFIRMED ▸", C["bad"]
+        self.disease_panel.set_tag(text, color)
+        self.disease_worker.set_tag(text, color)
+
     def refresh_orders(self):
         """Cheap update of just the robot-task line (called on every order event)."""
         pod = self.view["pod"] if self.view else None
@@ -771,6 +843,7 @@ class PodCard(tk.Frame):
             self._result_key = None
             self.refresh_orders()
             self.refresh_worker_panels()
+            self.refresh_tag()
             return
 
         pod = view["pod"]
@@ -838,6 +911,7 @@ class PodCard(tk.Frame):
             self.config(highlightbackground=C["line"])
             self.refresh_orders()
             self.refresh_worker_panels()
+            self.refresh_tag()
             return
 
         st = eng.settings
@@ -899,11 +973,660 @@ class PodCard(tk.Frame):
         self.trend.config(text=f"{trend}   ·   {meta}")
         self.refresh_orders()
         self.refresh_worker_panels()
+        self.refresh_tag()
 
 
 # ---------------------------------------------------------------------------
 # Large inspection window
 # ---------------------------------------------------------------------------
+class CloudPanel(tk.Frame):
+    """The "Cloud" tab: the farm's cloud database, read BACK from the database (not from the app's memory): every pod's identity, crop type,
+    growth stage, disease status, treatment history and harvest readiness. Select a pod for its full record and history.
+    Facts only: images are never stored in it."""
+
+    def __init__(self, parent, app):
+        super().__init__(parent, bg=C["bg"])
+        self.app, self.f = app, app.fonts
+        self._q, self._busy, self._selected = queue.Queue(), False, None
+        f = self.f
+        top = tk.Frame(self, bg=C["bg"])
+        top.pack(fill="x", padx=14, pady=(10, 2))
+        tk.Label(top, text="☁  Cloud database", bg=C["bg"], fg=C["text"], font=f["title"]).pack(side="left")
+        Btn(top, "↻ Refresh", self.refresh, "ghost", f["small_b"], 12, 3).pack(side="right")
+        self.status = tk.Label(self, text="", bg=C["bg"], fg=C["muted"], font=f["small"], anchor="w", justify="left", wraplength=1100)
+        self.status.pack(fill="x", padx=14)
+        self.explainer = tk.Label(self, text="Every pod is stored under the number on its tag. Only facts are stored (crop, stage, scores, "
+                                  "decisions, orders) - photos stay on this computer.", bg=C["bg"], fg=C["dim"], font=f["small"],
+                                  anchor="w", justify="left", wraplength=1100)
+        self.explainer.pack(fill="x", padx=14)
+        self.counts = tk.Label(self, text="", bg=C["bg"], fg=C["accent"], font=f["small_b"], anchor="w", wraplength=1100, justify="left")
+        self.counts.pack(fill="x", padx=14, pady=(6, 4))
+        body = tk.Frame(self, bg=C["bg"])
+        body.pack(fill="both", expand=True, padx=14, pady=(0, 10))
+        left = tk.Frame(body, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        left.pack(side="left", fill="y", padx=(0, 8))
+        cols = (("pod", "Pod / tag", 80), ("crop", "Crop", 70), ("status", "Status", 150), ("stage", "Growth stage", 120),
+                ("disease", "Disease", 70), ("harvest", "Harvest", 80), ("tx", "Treated", 66), ("tag", "Tag", 70))
+        self.tree = ttk.Treeview(left, columns=[c[0] for c in cols], show="headings", selectmode="browse", height=12)
+        for key, text, w in cols:
+            self.tree.heading(key, text=text)
+            self.tree.column(key, width=w, stretch=False)
+        sb = ttk.Scrollbar(left, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="y", padx=(6, 0), pady=6)
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+        right = tk.Frame(body, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        right.pack(side="left", fill="both", expand=True)
+        self.detail = tk.Text(right, bg=C["panel"], fg=C["text"], font=tkfont.nametofont("TkFixedFont"), wrap="word", bd=0,
+                              padx=12, pady=8, state="disabled", highlightthickness=0)
+        self.detail.pack(fill="both", expand=True)
+        self.detail.tag_configure("h", foreground=C["accent"])
+        self.detail.tag_configure("dim", foreground=C["dim"])
+        self.detail.tag_configure("bad", foreground=C["bad"])
+        self.detail.tag_configure("good", foreground=C["good"])
+        self.bind("<Configure>", lambda e: [w.config(wraplength=max(260, e.width - 30))
+                                               for w in (self.status, self.counts, self.explainer)])
+        self._drain()
+        self._auto()
+
+    def on_show(self):
+        """The tab was opened: read the database now (nothing is read from it while the tab is hidden)."""
+        self.refresh()
+
+    # ---- data access (always off the Tk thread: with real AWS a read takes a network round trip) ----
+    def _store(self):
+        eng = self.app.engine
+        if eng is not None and eng.farm_cloud.store is not None:
+            return eng.farm_cloud.store, eng.farm_cloud
+        from cloud_sync import FarmCloudStore, config_from_env, make_backend
+        cfg = config_from_env(base="dynamo_table")
+        backend = make_backend(cfg)
+        return (FarmCloudStore(backend) if backend else None), None
+
+    def refresh(self):
+        if self._busy:
+            return
+        self._busy = True
+        store, cloud = self._store()
+
+        def work():
+            try:
+                if store is None:
+                    return self._q.put(("overview", {"error": "The cloud database is switched off (FARM_CLOUD=off)."}))
+                rows = []
+                for status in M_STATUSES:
+                    rows += store.pods_with_status(status)
+                self._q.put(("overview", {"rows": rows, "status": cloud.status() if cloud else None,
+                                          "where": store.backend.where}))
+            except Exception as exc:                                  # noqa: BLE001
+                self._q.put(("overview", {"error": f"{type(exc).__name__}: {str(exc)[:200]}"}))
+        threading.Thread(target=work, daemon=True, name="cloud-view").start()
+
+    def _auto(self):
+        if not self.winfo_exists():
+            return
+        if self.winfo_ismapped():                 # only while the tab is showing: with real AWS every read is a network call
+            self.refresh()
+        self._auto_id = self.after(5000, self._auto)
+
+    def _on_select(self, _e=None):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        self._selected = pod_id = sel[0]
+        store, _ = self._store()
+
+        def work():
+            try:
+                self._q.put(("detail", {"pod": pod_id, "profile": store.profile(pod_id), "inspections": store.inspections(pod_id, 6),
+                                        "orders": store.orders(pod_id, limit=8), "tags": store.tag_reads(pod_id, 4)}))
+            except Exception as exc:                                  # noqa: BLE001
+                self._q.put(("detail", {"pod": pod_id, "error": f"{type(exc).__name__}: {str(exc)[:200]}"}))
+        threading.Thread(target=work, daemon=True, name="cloud-view").start()
+
+    def _drain(self):
+        if not self.winfo_exists():
+            return
+        try:
+            while True:
+                kind, data = self._q.get_nowait()
+                (self._show_overview if kind == "overview" else self._show_detail)(data)
+        except queue.Empty:
+            pass
+        self.after(200, self._drain)
+
+    # ---- drawing ----
+    def _show_overview(self, d):
+        self._busy = False
+        if "error" in d:
+            self.status.config(text=d["error"], fg=C["bad"])
+            return
+        st = d.get("status")
+        if st:
+            where = {"aws": "AMAZON DYNAMODB", "local": "LOCAL FILE (not AWS: set FARM_DDB_TABLE to use DynamoDB)"}.get(st["backend"], st["backend"])
+            net = {True: "connected", False: "NOT REACHABLE - events are kept on disk", None: "connecting..."}[st.get("online")]
+            self.status.config(text=f"{where}  ·  {d['where']}  ·  {net}  ·  {st.get('sent', 0)} sent  ·  {st.get('queued', 0)} queued  ·  "
+                                    f"{st.get('outbox', 0)} waiting on disk" + (f"  ·  last error: {st['last_error']}" if st.get("last_error") else ""),
+                               fg=C["bad"] if st.get("online") is False else C["muted"])
+        else:
+            self.status.config(text=f"{d['where']}  (no run in progress: showing what is stored)", fg=C["muted"])
+        rows = sorted(d["rows"], key=lambda r: (r.get("rail") or 0, r.get("station_letter") or "", r.get("side") or "", r.get("slot") or 0))
+        counts = {}
+        for r in rows:
+            counts[r["status"]] = counts.get(r["status"], 0) + 1
+        self.counts.config(text="  ·  ".join(f"{k.replace('_', ' ')} {v}" for k, v in counts.items()) or "no pods stored yet")
+        keep = self._selected
+        self.tree.delete(*self.tree.get_children())
+        for r in rows:
+            self.tree.insert("", "end", iid=r["pod_id"], values=(
+                r["pod_id"], r.get("crop_type") or "-", r["status"].replace("_", " "), (r.get("growth_stage") or "-")[:18],
+                r.get("disease_status") or "-", r.get("harvest_readiness") or "-", r.get("treatments_completed", 0),
+                {"confirmed": "✓ read", "failed": "✗", "unread": "-"}.get(r.get("tag_state"), "-")))
+        if keep and self.tree.exists(keep):
+            self.tree.selection_set(keep)
+
+    def _show_detail(self, d):
+        t = self.detail
+        t.config(state="normal")
+        t.delete("1.0", "end")
+        if "error" in d:
+            t.insert("end", d["error"], "bad")
+        elif not d.get("profile"):
+            t.insert("end", f"{d['pod']}: no record yet", "dim")
+        else:
+            from cloud_cli import FIELDS
+            p = d["profile"]
+            t.insert("end", f"{p['pod_id']}  ·  {p.get('crop_type')}  ·  {p['status'].replace('_', ' ').upper()}\n", "h")
+            for title, keys in FIELDS:
+                rows = [(k, p[k]) for k in keys if p.get(k) is not None]
+                if rows:
+                    t.insert("end", f"\n{title}\n", "h")
+                    for k, v in rows:
+                        t.insert("end", f"  {k:<26}{v}\n", "bad" if (k == "tag_failure_reason") else None)
+            t.insert("end", "\nINSPECTIONS (newest first)\n", "h")
+            for r in d["inspections"] or []:
+                t.insert("end", f"  {r['ts'][5:19]}  visit {r.get('visit') or '-':<3} {str(r.get('growth_stage')):<24} "
+                                f"disease={r.get('disease_name') or 'no':<14} -> {r.get('action')}\n")
+            if not d["inspections"]:
+                t.insert("end", "  (none)\n", "dim")
+            t.insert("end", "\nWORK ORDERS - treatment, harvest, replant ... (newest first)\n", "h")
+            for r in d["orders"] or []:
+                t.insert("end", f"  {r['created'][5:19]}  {r['order_id']}  {r['task']:<9} {r['status']:<11} "
+                                + (f"[{r['outcome_result']}]" if r.get("outcome_result") else "") + "\n")
+            if not d["orders"]:
+                t.insert("end", "  (none)\n", "dim")
+            t.insert("end", "\nTAG READS BY THE ROBOT CAMERA\n", "h")
+            for r in d["tags"] or []:
+                ok_ = r["state"] == "confirmed"
+                t.insert("end", f"  {r['ts'][5:19]}  {'✓' if ok_ else '✗'} read {r.get('tag_read') or '-':<9} conf {r.get('confidence')}  "
+                                f"crop from the tag's record: {r.get('crop_type_from_tag') or '-'}"
+                                + ("" if ok_ else f"  ({r.get('reason')})") + "\n", "good" if ok_ else "bad")
+            if not d["tags"]:
+                t.insert("end", "  (no robot read yet)\n", "dim")
+        t.config(state="disabled")
+
+
+class ScrollFrame(tk.Frame):
+    """A frame whose content scrolls vertically (mouse wheel or scrollbar) when it is taller than the room it gets.
+    Put widgets in `.inner`. Wheel events over a Treeview or Text are left to that widget."""
+
+    def __init__(self, parent):
+        super().__init__(parent, bg=C["bg"])
+        self.canvas = tk.Canvas(self, bg=C["bg"], highlightthickness=0)
+        self.vsb = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.vsb.set)
+        self.vsb.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.inner = tk.Frame(self.canvas, bg=C["bg"])
+        self._win = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._win, width=e.width))
+        self.bind("<Enter>", self._grab_wheel)
+        self.bind("<Leave>", self._release_wheel)
+
+    def _grab_wheel(self, _e=None):
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind_all(seq, self._on_wheel)
+
+    def _release_wheel(self, _e=None):
+        # <Leave> also fires when the pointer moves onto a child widget: only let go when it really left this frame
+        x, y = self.winfo_pointerxy()
+        if self.winfo_containing(x, y) is not None and str(self.winfo_containing(x, y)).startswith(str(self)):
+            return
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.unbind_all(seq)
+
+    def _on_wheel(self, e):
+        w = self.winfo_containing(e.x_root, e.y_root)
+        if w is not None and w.winfo_class() in ("Treeview", "Text"):
+            return
+        if self.inner.winfo_reqheight() <= self.canvas.winfo_height():
+            return                                           # everything already fits
+        step = -1 if (e.num == 4 or getattr(e, "delta", 0) > 0) else 1
+        self.canvas.yview_scroll(step * 2, "units")
+
+
+class TagMonitorPanel(tk.Frame):
+    """The "Pod tags" tab - LIVE. Watch the robots identify pods as it happens.
+
+      left    LIVE CAMERA   the front and back camera agents' frames, updated the moment each one is captured
+      right   OPENCV READING   the latest reading played back in stages: the three frames, the plate OpenCV found, the
+                            flattened plate, each character decoded with its match score, the vote, the pod record
+                            (crop type) the number leads to, and the check against what the application dispatched
+      bottom  HISTORY       every tag read, newest last; click a row to look at that reading again
+
+    The frames and results are real and arrive live. The reading itself takes ~0.1 s, far too fast to watch, so the
+    analysis panel replays each finished reading at a human pace (and speeds up on its own if readings pile up)."""
+
+    W, H = 800, 600
+    TILE = (288, 216)
+    THUMB = (256, 192)
+    PLATE_W = 640
+
+    def __init__(self, parent, app):
+        super().__init__(parent, bg=C["bg"])
+        self.app, self.f = app, app.fonts
+        self._bridge, self._seq = None, 0
+        self._queue, self._playing, self._aid, self._pump_id = deque(), False, None, None
+        self._imgs, self._tile_imgs, self.follow = [], {}, True
+        self.entries, self.counts, self.tags_seen = {}, {"confirmed": 0, "failed": 0}, set()
+        f = self.f
+
+        top = tk.Frame(self, bg=C["bg"])
+        top.pack(fill="x", padx=14, pady=(10, 4))
+        tk.Label(top, text="🏷  Pod tags · live", bg=C["bg"], fg=C["text"], font=f["title"]).pack(side="left")
+        self.follow_btn = Btn(top, "▶ Follow live", self.resume_live, "ghost", f["small_b"], 12, 3)
+        self.follow_btn.pack(side="right")
+        self.stats = tk.Label(top, text="", bg=C["bg"], fg=C["muted"], font=f["small_b"])
+        self.stats.pack(side="right", padx=14)
+        self.status = tk.Label(self, text="", bg=C["bg"], fg=C["muted"], font=f["small"], anchor="w", justify="left",
+                               wraplength=1180)
+        self.status.pack(fill="x", padx=14)
+
+        mid = tk.Frame(self, bg=C["bg"])
+        mid.pack(fill="x", padx=14, pady=6)
+        live = tk.Frame(mid, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        live.pack(side="left", fill="y", padx=(0, 8))
+        tk.Label(live, text="LIVE CAMERA", bg=C["panel"], fg=C["growth"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=10, pady=(8, 2))
+        self.tiles, self.captions = {}, {}
+        for side in ("front", "back"):
+            tk.Label(live, text=f"{side.upper()} SIDE", bg=C["panel"], fg=C["muted"], font=f["tiny_b"], anchor="w"
+                     ).pack(fill="x", padx=10)
+            # a blank pixel-sized image: a Label's width/height are PIXELS only when it holds an image (else text units)
+            self._tile_imgs[side] = tk.PhotoImage(width=self.TILE[0], height=self.TILE[1])
+            lab = tk.Label(live, bg="#0b0f17", image=self._tile_imgs[side], bd=0)
+            lab.pack(padx=10, pady=(2, 0))
+            cap = tk.Label(live, text="idle", bg=C["panel"], fg=C["dim"], font=f["small"], anchor="w", justify="left",
+                           wraplength=self.TILE[0])
+            cap.pack(fill="x", padx=10, pady=(2, 8))
+            self.tiles[side], self.captions[side] = lab, cap
+
+        right = tk.Frame(mid, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        right.pack(side="left", fill="both", expand=True)
+        tk.Label(right, text="OPENCV READING", bg=C["panel"], fg=C["accent"], font=f["tiny_b"], anchor="w"
+                 ).pack(fill="x", padx=10, pady=(8, 0))
+        self.canvas = tk.Canvas(right, width=self.W, height=self.H, bg=C["panel"], highlightthickness=0)
+        self.canvas.pack(padx=6, pady=4)
+
+        hist = tk.Frame(self, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
+        hist.pack(fill="both", expand=True, padx=14, pady=(0, 10))
+        cols = (("time", "Time", 70), ("cam", "Camera", 62), ("where", "Location", 170), ("tag", "Tag read", 90),
+                ("exp", "Dispatched", 90), ("crop", "Crop", 80), ("res", "Result", 120), ("conf", "Conf.", 52),
+                ("views", "Views", 52))
+        self.tree = ttk.Treeview(hist, columns=[c[0] for c in cols], show="headings", height=5, selectmode="browse")
+        for key, text, w in cols:
+            self.tree.heading(key, text=text)
+            self.tree.column(key, width=w, stretch=(key == "where"))
+        sb = ttk.Scrollbar(hist, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self.tree.pack(fill="both", expand=True, padx=(6, 0), pady=6)
+        self.tree.tag_configure("ok", foreground=C["good"])
+        self.tree.tag_configure("bad", foreground=C["bad"])
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+        self._draw_idle()
+        self._poll()
+
+    # ---------------------------------------------------------------- live feed
+    @staticmethod
+    def _where(e):
+        return f"rail {e['row'] + 1} · station {'LMR'[e['col']]} · layer {e['layer'] + 1} · {e['side']}"
+
+    def _poll(self):
+        if not self.winfo_exists():
+            return
+        try:
+            self._poll_once()
+        except Exception:
+            self.app._loop_error("pod tag monitor")
+        self.after(150 if self.winfo_ismapped() else 600, self._poll)     # slower while the tab is hidden
+
+    def _poll_once(self):
+        eng = self.app.engine
+        bridge = eng.simulation_bridge if eng else None
+        if bridge is None:
+            self.status.config(text="Nothing to watch yet: start a run with “PyBullet robots” ticked. The robot cameras read the "
+                                    "pod tags only inside the PyBullet simulation.")
+            return
+        if bridge is not self._bridge:                      # a new run: start the monitor afresh
+            self._bridge, self._seq = bridge, 0
+            self._queue.clear()
+            self.entries.clear(); self.tags_seen.clear(); self.counts.update(confirmed=0, failed=0)
+            self.tree.delete(*self.tree.get_children())
+            self._cancel_play()
+            self._draw_idle()
+        entries, latest = bridge.tag_feed_since(self._seq)
+        self._seq = latest
+        if not entries and self._playing is False and not self._queue and self.status.cget("text").startswith("Nothing"):
+            self.status.config(text="")
+        visible = self.winfo_ismapped()
+        for e in entries:
+            if e["kind"] == "view":
+                if visible:                                  # no point decoding camera frames nobody is looking at
+                    self._show_live(e)
+            elif e["kind"] == "read":
+                self._on_read(e, visible)
+        self._update_stats()
+        self._pump()
+
+    def _show_live(self, e):
+        side = e["side"] if e["side"] in self.tiles else "front"
+        img = cv2.imdecode(np.frombuffer(e["jpg"], np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return
+        self._tile_imgs[side] = to_photo(cv2.resize(img, self.TILE, interpolation=cv2.INTER_AREA))
+        self.tiles[side].config(image=self._tile_imgs[side])
+        tail = "   →  reading the tag with OpenCV…" if e["view"] == e["views"] else ""
+        self.captions[side].config(text=f"{self._where(e)}\nview {e['view']}/{e['views']} captured{tail}", fg=C["text"])
+
+    def _on_read(self, e, visible=True):
+        side = e["side"] if e["side"] in self.captions else "front"
+        ok = e["state"] == "confirmed"
+        self.captions[side].config(text=f"{self._where(e)}\n" + (f"tag read: {e['label']} ✓" if ok else "tag NOT confirmed ✗"),
+                                   fg=C["good"] if ok else C["bad"])
+        self.counts["confirmed" if ok else "failed"] += 1
+        if ok:
+            self.tags_seen.add(e["label"])
+        if self.follow and visible:                          # the replay is for a human watching; a hidden tab just logs it
+            self._queue.append(e)
+        else:
+            self._add_history(e)
+
+    def _update_stats(self):
+        self.stats.config(text=f"{len(self.tags_seen)} different tags read  ·  {self.counts['confirmed']} confirmed  ·  "
+                               f"{self.counts['failed']} not confirmed  ·  {len(self._queue)} waiting to be shown")
+        self.follow_btn.set_enabled(not self.follow)
+
+    # ---------------------------------------------------------------- history
+    def _add_history(self, e):
+        ok = e["state"] == "confirmed"
+        iid = str(e["seq"])
+        if self.tree.exists(iid):
+            return
+        self.entries[iid] = e
+        self.tree.insert("", "end", iid=iid, tags=("ok" if ok else "bad",), values=(
+            time.strftime("%H:%M:%S", time.localtime(e["t"])), e["side"],
+            f"rail {e['row'] + 1} · station {'LMR'[e['col']]} · layer {e['layer'] + 1}",
+            e["label"] or "—", e["expected"] or "—", (e["crop_type"] or "—"),
+            "✓ confirmed" if ok else "✗ not confirmed",
+            f"{e['confidence']:.2f}" if e.get("confidence") else "—",
+            f"{e['agreeing_views']}/{e['views_total']}"))
+        self.tree.see(iid)
+
+    def _on_select(self, _evt):
+        sel = self.tree.selection()
+        if not sel or sel[0] not in self.entries:
+            return
+        self.follow = False
+        self._cancel_play()
+        self._render_all(self.entries[sel[0]])
+        self._update_stats()
+
+    def resume_live(self):
+        self.follow = True
+        self.tree.selection_set(())
+        self._update_stats()
+        self._pump()
+
+    # ---------------------------------------------------------------- the analysis canvas
+    def _draw_idle(self):
+        c = self.canvas
+        c.delete("all")
+        c.create_text(self.W // 2, self.H // 2, fill=C["dim"], font=self.f["head"],
+                      text="waiting for a robot camera to read a pod tag…")
+
+    def _cancel_play(self):
+        for attr in ("_aid", "_pump_id"):
+            if getattr(self, attr):
+                self.after_cancel(getattr(self, attr))
+                setattr(self, attr, None)
+        self._playing = False
+
+    def _pump(self):
+        if self._playing or not self.follow or not self._queue:
+            return
+        e = self._queue.popleft()
+        self._add_history(e)
+        backlog = len(self._queue)
+        scale = 1.0 if backlog == 0 else (0.0 if backlog >= 6 else 1.0 / (1 + backlog))   # catch up when readings pile up
+        self._playing = True
+        steps = self._steps(e)
+        self._run(steps, 0, scale)
+
+    def _run(self, steps, i, scale):
+        if i >= len(steps):
+            self._playing, self._aid = False, None
+            self._pump_id = self.after(int(900 * scale), self._pump)
+            return
+
+        def go():
+            self._aid = None
+            steps[i][1]()
+            self._run(steps, i + 1, scale)
+        self._aid = self.after(int(steps[i][0] * scale), go)
+
+    def _render_all(self, e):
+        for _delay, fn in self._steps(e):
+            fn()
+
+    def _steps(self, e):
+        """The reading as a list of (delay_ms, draw_function): each stage appears after its delay, so the replay reads like
+        the process itself."""
+        c, f = self.canvas, self.f
+        ev = e.get("evidence") or {"views": [], "flat_png": None, "cells": []}
+        tw, th = self.THUMB
+        steps = []
+        views = ev["views"]
+
+        def clear():
+            c.delete("all")
+            self._imgs = []
+            c.create_text(8, 4, anchor="nw", fill=C["text"], font=f["small_b"],
+                          text=f"1  CAMERA FRAMES   ·   {self._where(e)}")
+        steps.append((0, clear))
+        for i, v in enumerate(views):
+            def frame(i=i, v=v):
+                img = cv2.imdecode(np.frombuffer(v["jpg"], np.uint8), cv2.IMREAD_COLOR) if v["jpg"] else None
+                x0 = 8 + i * (tw + 12)
+                if img is not None:
+                    self._imgs.append(to_photo(cv2.resize(img, (tw, th), interpolation=cv2.INTER_AREA)))
+                    c.create_image(x0, 28, anchor="nw", image=self._imgs[-1])
+                c.create_text(x0, 28 + th + 4, anchor="nw", fill=C["dim"], font=f["small"], text=f"view {i + 1}", tags=f"cap{i}")
+            steps.append((220, frame))
+        for i, v in enumerate(views):
+            def outline(i=i, v=v):
+                x0 = 8 + i * (tw + 12)
+                h_px, w_px = v.get("shape") or (240, 320)
+                col = C["good"] if v["valid"] else C["warn"]
+                if v["corners"] is not None:
+                    pts = []
+                    for px, py in v["corners"]:
+                        pts += [x0 + px * tw / w_px, 28 + py * th / h_px]
+                    c.create_polygon(*pts, outline=col, fill="", width=3)
+                c.delete(f"cap{i}")
+                if v["valid"]:
+                    txt, tcol = f"view {i + 1}: read {v['text']} ({v['confidence']:.2f})", C["good"]
+                elif v["corners"] is not None:
+                    txt, tcol = f"view {i + 1}: plate found, unreadable", C["warn"]
+                else:
+                    txt, tcol = f"view {i + 1}: no tag found", C["bad"]
+                c.create_text(x0, 28 + th + 4, anchor="nw", fill=tcol, font=f["small"], text=txt)
+            steps.append((300, outline))
+
+        y2 = 28 + th + 30
+        px0 = (self.W - self.PLATE_W) // 2
+        geo = pod_labels.plate_geometry()
+        k = self.PLATE_W / geo["width"]
+        plate_h = int(geo["height"] * k)
+
+        def show_flat():
+            c.create_text(8, y2, anchor="nw", fill=C["text"], font=f["small_b"],
+                          text="2  PLATE FLATTENED (perspective corrected), then read one character at a time")
+            if ev.get("flat_png"):
+                flat = cv2.imdecode(np.frombuffer(ev["flat_png"], np.uint8), cv2.IMREAD_GRAYSCALE)
+                big = cv2.resize(flat, (self.PLATE_W, plate_h), interpolation=cv2.INTER_CUBIC)
+                self._imgs.append(to_photo(cv2.cvtColor(big, cv2.COLOR_GRAY2BGR)))
+                c.create_image(px0, y2 + 22, anchor="nw", image=self._imgs[-1])
+            else:
+                c.create_text(self.W // 2, y2 + 22 + plate_h // 2, fill=C["bad"], font=f["head"],
+                              text="no plate could be flattened — nothing to read")
+        steps.append((450, show_flat))
+        cells = {cell["index"]: cell for cell in ev.get("cells", [])}
+        for i in range(pod_labels.N_CELLS):
+            def cell(i=i):
+                cd = cells.get(i)
+                if cd is None:
+                    return
+                x0, y0, x1, y1 = geo["cells"][i]
+                col = C["good"] if cd["score"] >= 0.75 else (C["warn"] if cd["score"] >= pod_labels.MIN_CELL_SCORE else C["bad"])
+                c.create_rectangle(px0 + x0 * k, y2 + 22 + y0 * k, px0 + x1 * k, y2 + 22 + y1 * k, outline=col, width=2)
+                cx = px0 + (x0 + x1) / 2 * k
+                c.create_text(cx, y2 + 22 + plate_h + 18, fill=col, font=f["title"], text=cd["char"])
+                c.create_text(cx, y2 + 22 + plate_h + 40, fill=C["dim"], font=f["small"], text=f"{cd['score']:.2f}")
+            if cells:
+                steps.append((170, cell))
+
+        ok = e["state"] == "confirmed"
+        y3 = y2 + 22 + plate_h + 56
+        per_view = ", ".join(v["text"] or "unreadable" for v in views) or "—"
+
+        def vote():
+            txt = (f"3  VOTE   views read: {per_view}  →  {e['agreeing_views']} of {e['views_total']} agree: {e['label']}  "
+                   f"(confidence {e['confidence']:.2f})") if e["label"] else f"3  VOTE   views read: {per_view}  →  no confirmed tag"
+            c.create_text(8, y3, anchor="nw", fill=C["good"] if e["label"] else C["bad"], font=f["small_b"], text=txt,
+                          width=self.W - 16)
+
+        def record():
+            rec = e.get("record")
+            txt = (f"4  WHICH POD?   {e['label']}  →  pybullet_sim/pods/{e['label']}/pod.json  →  crop type: "
+                   f"{rec['crop_type'].upper()}   (rail {rec['rail']} · station {rec['station_letter']} · {rec['side']} · "
+                   f"slot {rec['slot']})") if rec else "4  WHICH POD?   no pod record without a confirmed tag"
+            c.create_text(8, y3 + 22, anchor="nw", fill=C["text"] if rec else C["dim"], font=f["small_b"], text=txt,
+                          width=self.W - 16)
+
+        def check():
+            if ok:
+                crop = f" · crop {e['dispatched_crop']} ✓" if e.get("dispatched_crop") else ""
+                txt, col = (f"5  CHECK   dispatched {e['expected']}  ✓ same pod{crop}  →  scores and decision attached to "
+                            f"{e['label']}"), C["good"]
+            else:
+                txt, col = f"5  CHECK   ✗ NOT CONFIRMED — {e['reason']}.  No work done on this pod.", C["bad"]
+            c.create_text(8, y3 + 56, anchor="nw", fill=col, font=f["small_b"], text=txt, width=self.W - 16)
+        steps += [(500, vote), (550, record), (550, check)]
+        return steps
+
+    def destroy(self):
+        self._cancel_play()
+        super().destroy()
+
+
+class TagReadWindow(tk.Toplevel):
+    """'How did the robot know which pod this is?'  Shows, step by step, what the robot camera saw and what OpenCV did with
+    it: the camera frames with the tag plate it found, the plate flattened and read character by character, the vote
+    across the views, and the pod record the number leads to (crop type) checked against what was dispatched. Opens from
+    the POD TAG line of a pod card and updates live if the robot has not got there yet."""
+
+    def __init__(self, app, pod):
+        super().__init__(app, bg=C["bg"])
+        self.app, self.pod, self._sig, self._photo = app, pod, None, None
+        self.title(f"Camera tag reading · {pod['pod_id']}")
+        self.geometry("840x860")
+        self.bind("<Escape>", lambda e: self.destroy())
+        f = app.fonts
+        self.head = tk.Label(self, text="", bg=C["bg"], fg=C["text"], font=f["title"], anchor="w")
+        self.head.pack(fill="x", padx=14, pady=(12, 2))
+        self.sub = tk.Label(self, text="", bg=C["bg"], fg=C["muted"], font=f["small"], anchor="w", justify="left", wraplength=800)
+        self.sub.pack(fill="x", padx=14)
+        self.image = tk.Label(self, bg=C["bg"])
+        self.image.pack(padx=14, pady=8)
+        self.steps = []
+        for _ in range(3):
+            lab = tk.Label(self, text="", bg=C["bg"], fg=C["text"], font=f["small"], anchor="w", justify="left", wraplength=800)
+            lab.pack(fill="x", padx=14, pady=2)
+            self.steps.append(lab)
+        tk.Label(self, text="Esc closes · this window updates by itself", bg=C["bg"], fg=C["dim"], font=f["small"]
+                 ).pack(side="bottom", pady=6)
+        self.refresh()
+        self._poll()
+
+    def _poll(self):
+        if not self.winfo_exists():
+            return
+        self.refresh()
+        self.after(500, self._poll)
+
+    def refresh(self):
+        eng = self.app.engine
+        bridge = eng.simulation_bridge if eng else None
+        read = bridge.tag_read(self.pod["pod_id"]) if bridge else None
+        sig = None if read is None else (read["state"], read["label"], read["confidence"], read.get("reason"))
+        if sig == self._sig and self._sig is not None:
+            return
+        self._sig = sig
+        pid = self.pod["pod_id"]
+        self.head.config(text=f"Which pod is this?   {pid}")
+        if read is None:
+            self.sub.config(text="The robot camera has not reached this pod yet. When it does, the frames it captures, the tag "
+                                 "OpenCV finds on the trough and each character it reads will appear here.")
+            self.image.config(image="", text="waiting for the robot camera…", fg=C["dim"], font=self.app.fonts["head"])
+            for lab in self.steps:
+                lab.config(text="")
+            return
+        self.sub.config(text="The robot is NOT told which pod it is at: it drives to coordinates, photographs the trough and reads "
+                             "the number printed on its tag with OpenCV.")
+        png = read.get("sheet_png")
+        if png:
+            img = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
+            self._photo = to_photo(img)
+            self.image.config(image=self._photo, text="")
+        rec = read.get("record") or {}
+        per_view = ", ".join((v["text"] or "unreadable") for v in (read.get("per_view") or []))
+        ok = read["state"] == "confirmed"
+        if read["label"]:
+            vote = (f"3  VOTE   views read: {per_view}   →   {read['agreeing_views']} of {read['views_total']} agree: "
+                    f"{read['label']}   (confidence {read['confidence']:.2f})")
+        else:
+            vote = f"3  VOTE   views read: {per_view or '—'}   →   no confirmed tag"
+        self.steps[0].config(text=vote, fg=C["good"] if read["label"] else C["bad"])
+        if rec:
+            where = (f"rail {rec['rail']} · station {rec['station_letter']} · {rec['side']} · slot {rec['slot']} · "
+                     f"{rec['photos']} photos")
+            self.steps[1].config(text=f"4  WHICH POD?   tag {read['label']}  →  pybullet_sim/pods/{read['label']}/pod.json  →  "
+                                      f"crop type: {rec['crop_type'].upper()}   ({where})", fg=C["text"])
+        else:
+            self.steps[1].config(text="4  WHICH POD?   no pod record could be looked up without a confirmed tag", fg=C["dim"])
+        expected = read.get("expected")
+        if ok:
+            crop = f"  ·  crop {read['dispatched_crop']} ✓" if read.get("dispatched_crop") else ""
+            self.steps[2].config(text=f"5  CHECK   the application dispatched {expected}  ✓ same pod{crop}  →  scores and decision "
+                                      f"attached to {read['label']}", fg=C["good"])
+        else:
+            self.steps[2].config(text=f"5  CHECK   ✗ NOT CONFIRMED: {read.get('reason')}.  No work was done on this pod "
+                                      f"(expected {expected}).", fg=C["bad"])
+
+
 class ZoomWindow(tk.Toplevel):
     def __init__(self, app, res):
         super().__init__(app, bg=C["bg"])
@@ -1406,6 +2129,8 @@ class App(tk.Tk):
         self._style()
         self.engine = None
         self._orders_win = None
+        self.tag_panel = None             # the "Pod tags" tab (built in _build_body)
+        self.cloud_panel = None           # the "Cloud" tab
         self.auto_approve = True          # master switch: robot orders approved + executed automatically
         self.pybullet_var = tk.BooleanVar(value=True)
         self._pybullet_bridge = None
@@ -1469,6 +2194,8 @@ class App(tk.Tk):
             b.pack(side="left", padx=3)
         self.orders_btn = Btn(bar, "🤖 Robot orders", self.open_orders, "ghost", f["norm_b"])
         self.orders_btn.pack(side="left", padx=(18, 3))
+        self.cloud_btn = Btn(bar, "☁ Cloud", self.open_cloud, "ghost", f["norm_b"], 7)     # text shows the sync state once a run starts
+        self.cloud_btn.pack(side="left", padx=3)
         self.auto_btn = Btn(bar, "", self.toggle_auto, "ok", f["norm_b"])
         self.auto_btn.pack(side="left", padx=3)
         self.style_auto_button(self.auto_btn)
@@ -1507,16 +2234,24 @@ class App(tk.Tk):
         logtab = tk.Frame(self.notebook, bg=C["bg"])
         settings = tk.Frame(self.notebook, bg=C["bg"])
         cal = tk.Frame(self.notebook, bg=C["bg"])
+        tags = tk.Frame(self.notebook, bg=C["bg"])
+        cloud = tk.Frame(self.notebook, bg=C["bg"])
         self.notebook.add(ops, text="Operations")
         self.notebook.add(cal, text="Calibration")
+        self.notebook.add(tags, text="Pod tags")
+        self.notebook.add(cloud, text="Cloud")
         self.notebook.add(logtab, text="Log")
         self.notebook.add(settings, text="Settings")
         self._cal_tab_index = 1
-        self._log_tab_index = 2
+        self._tags_tab_index = 2
+        self._cloud_tab_index = 3
+        self._log_tab_index = 4
         self._log_alerts = 0
         self.notebook.bind("<<NotebookTabChanged>>", self._tab_changed)
         self._build_operations_tab(ops)
         self._build_calibration_tab(cal)
+        self._build_tags_tab(tags)
+        self._build_cloud_tab(cloud)
         self._build_log_tab(logtab)
         self._build_settings_tab(settings)
 
@@ -1577,10 +2312,24 @@ class App(tk.Tk):
         tick = tk.Frame(ops, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         tick.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         tk.Label(tick, text="LATEST", bg=C["panel"], fg=C["dim"], font=f["tiny_b"]).pack(side="left", padx=(10, 8), pady=6)
-        self.ticker = tk.Label(tick, text="", bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w")
+        self.ticker = tk.Label(tick, text="", bg=C["panel"], fg=C["muted"], font=f["small"], anchor="w",
+                               justify="left", wraplength=760)
         self.ticker.pack(side="left", fill="x", expand=True)
         tk.Label(tick, text="full log in the Log tab", bg=C["panel"], fg=C["dim"], font=f["tiny"]
                  ).pack(side="right", padx=10)
+        tick.bind("<Configure>", lambda e: self.ticker.config(wraplength=max(220, e.width - 220)))
+
+    def _build_tags_tab(self, tab):
+        """Pod tags: watch the robot cameras read the numbers printed on the pods, live."""
+        sf = ScrollFrame(tab)
+        sf.pack(fill="both", expand=True)
+        self.tag_panel = TagMonitorPanel(sf.inner, self)
+        self.tag_panel.pack(fill="both", expand=True)
+
+    def _build_cloud_tab(self, tab):
+        """Cloud: the farm's cloud database, read back from the database itself."""
+        self.cloud_panel = CloudPanel(tab, self)
+        self.cloud_panel.pack(fill="both", expand=True)
 
     def _build_log_tab(self, tab):
         f = self.fonts
@@ -1592,7 +2341,7 @@ class App(tk.Tk):
         logbox = tk.Frame(tab, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
         logbox.pack(fill="both", expand=True)
         self.log = tk.Text(logbox, height=5, bg=C["panel"], fg=C["text"], font=f["small"], bd=0, highlightthickness=0,
-                           state="disabled", wrap="none", padx=8, pady=6)
+                           state="disabled", wrap="word", padx=8, pady=6)
         lsb = ttk.Scrollbar(logbox, command=self.log.yview)
         self.log.configure(yscrollcommand=lsb.set)
         lsb.pack(side="right", fill="y")
@@ -1612,13 +2361,21 @@ class App(tk.Tk):
             self.notebook.tab(self._log_tab_index, text="Log")
         if current == self._cal_tab_index:
             self._cal_tab_shown()
+        if current == self._cloud_tab_index and self.cloud_panel is not None:
+            self.cloud_panel.on_show()
 
     def _build_settings_tab(self, tab):
         f = self.fonts
-        tab.grid_columnconfigure(0, weight=1, uniform="s")
-        tab.grid_columnconfigure(1, weight=1, uniform="s")
-        left = tk.Frame(tab, bg=C["bg"])
-        right = tk.Frame(tab, bg=C["bg"])
+        # The settings contain several stacked panels. On laptop-height screens, put them
+        # inside a vertical scroll area so the final controls never sit underneath the
+        # bottom edge of the window.
+        settings_scroll = ScrollFrame(tab)
+        settings_scroll.pack(fill="both", expand=True)
+        content = settings_scroll.inner
+        content.grid_columnconfigure(0, weight=1, uniform="s")
+        content.grid_columnconfigure(1, weight=1, uniform="s")
+        left = tk.Frame(content, bg=C["bg"])
+        right = tk.Frame(content, bg=C["bg"])
         left.grid(row=0, column=0, sticky="new", padx=(0, 6), pady=(8, 0))
         right.grid(row=0, column=1, sticky="new", padx=(6, 0), pady=(8, 0))
 
@@ -1678,7 +2435,7 @@ class App(tk.Tk):
         self.pybullet_check.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
         tk.Label(srow, text="Pod localization", bg=C["panel"], fg=C["muted"], font=f["small"]).grid(
             row=1, column=0, sticky="w", padx=(0, 8), pady=3)
-        self.loc_var = tk.StringVar(value="ArUco tags (vision)")
+        self.loc_var = tk.StringVar(value="RGB-D geometry (no ArUco)")
         ttk.Combobox(srow, textvariable=self.loc_var, state="readonly", width=26,
                      values=list(self._SIM_LOC)).grid(row=1, column=1, sticky="w", pady=3)
         self.rig_var = tk.BooleanVar(value=sim_options.OPTIONS["stereo_rig"])
@@ -1731,7 +2488,7 @@ class App(tk.Tk):
         self.model_entry.config(state="disabled")
 
     # --- simulation options (shared with the robot through pybullet_sim.sim_options) -------------------------
-    _SIM_LOC = {"ArUco tags (vision)": "vision", "Simulator mask (reference)": "simulator_mask"}
+    _SIM_LOC = {"RGB-D geometry (no ArUco)": "simulator_mask"}
 
     def _apply_sim_settings(self):
         sim_options.OPTIONS["localization"] = self._SIM_LOC[self.loc_var.get()]
@@ -1749,6 +2506,12 @@ class App(tk.Tk):
 
     def _build_calibration_tab(self, tab):
         f = self.fonts
+        # The two camera previews plus parameter charts are taller than the tab on many
+        # laptop displays. Scroll the whole calibration workspace vertically instead of
+        # clipping the lower chart or letting status text sit against the window edge.
+        calibration_scroll = ScrollFrame(tab)
+        calibration_scroll.pack(fill="both", expand=True)
+        tab = calibration_scroll.inner
         tab.grid_columnconfigure(1, weight=1)
         tab.grid_rowconfigure(1, weight=1)
         head = tk.Frame(tab, bg=C["bg"])
@@ -1760,8 +2523,10 @@ class App(tk.Tk):
         Btn(head, "Reload saved", self._cal_reload, "ghost", f["norm"]).pack(side="left")
         self.cal_bar = tk.Canvas(head, width=240, height=10, bg=C["panel2"], highlightthickness=0)
         self.cal_bar.pack(side="left", padx=(18, 8))
-        self.cal_status = tk.Label(head, text="", bg=C["bg"], fg=C["muted"], font=f["small"], anchor="w")
-        self.cal_status.pack(side="left")
+        self.cal_status = tk.Label(head, text="", bg=C["bg"], fg=C["muted"], font=f["small"], anchor="w",
+                                   justify="left", wraplength=320)
+        self.cal_status.pack(side="left", fill="x", expand=True)
+        head.bind("<Configure>", lambda e: self.cal_status.config(wraplength=max(140, e.width - 700)))
 
         # -- live frames: A over B --------------------------------------------------------------------
         left = tk.Frame(tab, bg=C["panel"], highlightthickness=1, highlightbackground=C["line"])
@@ -1786,7 +2551,7 @@ class App(tk.Tk):
         wrap = tk.Frame(mid, bg=C["panel"])
         wrap.pack(fill="both", expand=True)
         self.cal_text = tk.Text(wrap, bg=C["panel"], fg=C["text"], font=f["mono"], bd=0, highlightthickness=0,
-                                wrap="none", state="disabled", padx=10, pady=4)
+                                wrap="word", state="disabled", padx=10, pady=4)
         sb = ttk.Scrollbar(wrap, command=self.cal_text.yview)
         self.cal_text.configure(yscrollcommand=sb.set)
         sb.pack(side="right", fill="y")
@@ -2008,7 +2773,7 @@ class App(tk.Tk):
             t = rig["truth_comparison"]
             self.cal_status.config(text="calibrated")
             self._cal_write("── result ───────────────────────────────────────────────────────\n", "head")
-            self._cal_write(f"cv2.calibrateMultiviewExtended on {rig['frames_used']} board views\n", "dim")
+            self._cal_write(f"{rig.get('solver', 'stereo calibration')} on {rig['frames_used']} board views\n", "dim")
             self._cal_write(f"reprojection error   {rig['rms_px']:.3f} px\n"
                             f"baseline B↔A         {rig['baseline_m'] * 1000:.2f} mm  (true {self._cal_designed:.0f} mm)\n"
                             f"rotation error       {t['rotation_error_deg']:.3f}°   translation error "
@@ -2058,25 +2823,49 @@ class App(tk.Tk):
     # -- pod localization samples from the robot ---------------------------------------------------------------
     def _cal_sample(self, s):
         fmt = lambda c: "–" if c is None else "(" + ", ".join(f"{v:.4f}" for v in c) + ")"
-        self._cal_write(f"\n── {s['pod_id']} · {s['side']} head · tag #{s['marker_id']} ", "head",
-                        "─" * 28 + "\n", "dim")
-        for v in s["views"]:
-            for cam, tag, key in (("A", "a", ""), ("B", "b", "_b")):
-                ok = v.get("corners" + ("_a" if key == "" else "_b")) is not None
-                rp = v.get("reprojection_px" + ("_a" if key == "" else "_b"))
-                self._cal_write(f"view {v['view_index'] + 1}  " if cam == "A" else "        ", "dim")
-                self._cal_write(f"{cam} ", tag, f"{'✓ tag found' if ok else '✗ no tag  '}  ", "good" if ok else "bad")
-                if ok and rp is not None:
-                    c = v.get("center_a") if cam == "A" else v.get("center_b")
-                    self._cal_write(f"reproj {rp:.2f} px   pod centre {fmt(c)}\n", "num")
-                else:
-                    self._cal_write("\n", "")
-            if v.get("stereo_center") is not None:
-                self._cal_write(f"        stereo → {fmt(v['stereo_center'])}"
-                                + (f"   Δ vs PnP {v['stereo_vs_pnp_mm']:.1f} mm\n"
-                                   if v.get("stereo_vs_pnp_mm") is not None else "\n"), "dim")
-        self._cal_write(f"fused (median of {s.get('camera_measurements') or 0} camera estimates)  {fmt(s['fused_center'])} m\n", "head")
-        self._cal_write(f"true position (simulator)              {fmt(s['truth_center'])} m\n", "dim")
+        method = str(s.get("method") or "")
+        geometry_mode = "rgbd" in method.lower() or "segmentation" in method.lower()
+        if geometry_mode:
+            self._cal_write(f"\n── {s['pod_id']} · {s['side']} head · RGB-D geometry (no ArUco) ",
+                            "head", "─" * 15 + "\n", "dim")
+            contributing = 0
+            for v in s["views"]:
+                points = v.get("reconstructed_points")
+                pixels = v.get("target_pixels")
+                if points is not None and int(points) >= 12:
+                    contributing += 1
+                detail = []
+                if pixels is not None:
+                    detail.append(f"{int(pixels)} target pixels")
+                if points is not None:
+                    detail.append(f"{int(points)} 3D points")
+                good_view = points is not None and int(points) >= 12
+                status = "✓ contributes" if good_view else "· insufficient geometry"
+                self._cal_write(f"view {v['view_index'] + 1}  {status}", "good" if good_view else "warn")
+                if detail:
+                    self._cal_write("  (" + ", ".join(detail) + ")", "dim")
+                self._cal_write("\n", "")
+            self._cal_write(f"geometry views contributing: {contributing}/{len(s['views'])}\n", "dim")
+            self._cal_write(f"RGB-D fused estimate  {fmt(s['fused_center'])} m\n", "head")
+        else:
+            self._cal_write(f"\n── {s['pod_id']} · {s['side']} head · tag #{s.get('marker_id')} ", "head",
+                            "─" * 28 + "\n", "dim")
+            for v in s["views"]:
+                for cam, tag, key in (("A", "a", ""), ("B", "b", "_b")):
+                    ok = v.get("corners" + ("_a" if key == "" else "_b")) is not None
+                    rp = v.get("reprojection_px" + ("_a" if key == "" else "_b"))
+                    self._cal_write(f"view {v['view_index'] + 1}  " if cam == "A" else "        ", "dim")
+                    self._cal_write(f"{cam} ", tag, f"{'✓ tag found' if ok else '✗ no tag  '}  ", "good" if ok else "bad")
+                    if ok and rp is not None:
+                        c = v.get("center_a") if cam == "A" else v.get("center_b")
+                        self._cal_write(f"reproj {rp:.2f} px   pod centre {fmt(c)}\n", "num")
+                    else:
+                        self._cal_write("\n", "")
+                    if cam == "B" and v.get("stereo_center") is not None:
+                        self._cal_write(f"        stereo → {fmt(v['stereo_center'])}"
+                                        + (f"   Δ vs PnP {v['stereo_vs_pnp_mm']:.1f} mm\n"
+                                           if v.get("stereo_vs_pnp_mm") is not None else "\n"), "dim")
+            self._cal_write(f"fused (median of {s.get('camera_measurements') or 0} camera estimates)  {fmt(s['fused_center'])} m\n", "head")
         if s["error_mm"] is not None:
             good = s["valid"] and not s["fallback_used"]
             self._cal_write(f"error {s['error_mm']:.2f} mm   ", "good" if good else "warn",
@@ -2307,7 +3096,7 @@ class App(tk.Tk):
             self._set_state(self.state)
             return
         if self.reset_var.get() and not messagebox.askyesno(
-                "Reset history", "This deletes dynamo_table.json AND every crop's saved age, so all pods return to their starting ages.\nContinue?"):
+                "Reset history", "This deletes dynamo_table.json AND every crop's saved age, so all pods return to their starting ages.\n(The cloud database is NOT touched: the application never deletes cloud data.)\nContinue?"):
             self._set_state(self.state)
             return
         n = int(self.slots_var.get())
@@ -2397,6 +3186,28 @@ class App(tk.Tk):
         self._log_line("auto-approve ON: new robot orders are approved and run automatically" if self.auto_approve
                        else "MANUAL approval: new robot orders will wait for you in 🤖 Robot orders",
                        "ok" if self.auto_approve else "warn")
+
+    def open_cloud(self):
+        """Show the Cloud tab (the toolbar's cloud button, which also carries the live sync state)."""
+        self.notebook.select(self._cloud_tab_index)
+
+    def _refresh_cloud_button(self, eng):
+        st = eng.farm_cloud.status()
+        if st["backend"] == "off":
+            text, kind = "☁ off", "ghost"
+        elif st["backend"] == "local":
+            text, kind = f"☁ local · {st.get('sent', 0)}", "ghost"
+        elif st.get("online") is False:
+            text, kind = f"☁ OFFLINE · {st.get('outbox', 0)} waiting", "warn"
+        else:
+            text, kind = f"☁ AWS ✓ {st.get('sent', 0)}", "ghost"
+        if self.cloud_btn.cget("text") != text:
+            self.cloud_btn.set_text(text)
+            self.cloud_btn.set_kind(kind)
+
+    def open_tag_monitor(self):
+        """Show the live Pod tags tab."""
+        self.notebook.select(self._tags_tab_index)
 
     def open_orders(self, select=None):
         if not self.engine:
@@ -2580,8 +3391,13 @@ class App(tk.Tk):
         for c in self.cards:
             try:
                 c.refresh_worker_panels()
+                c.refresh_tag()
             except Exception:
                 self._loop_error("worker panel")
+        try:
+            self._refresh_cloud_button(eng)
+        except Exception:
+            self._loop_error("cloud button")
         try:
             pending = eng.orders.pending_count()
             self.orders_btn.set_text("🤖 Robot orders" + (f" · {pending} to approve" if pending else ""))

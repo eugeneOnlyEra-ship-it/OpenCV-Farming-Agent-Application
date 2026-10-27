@@ -1,0 +1,53 @@
+{
+ "pod_id": "R2-M-F1",
+ "tag": "R2-M-F1",
+ "index": 32,
+ "crop_type": "lettuce",
+ "rail": 2,
+ "station": 1,
+ "station_letter": "M",
+ "side": "front",
+ "slot": 1,
+ "trough_id": "R2-M-F",
+ "sim_location": {
+  "row": 1,
+  "col": 1,
+  "layer": 0,
+  "side": "front",
+  "sim_pod_id": "R1C1-L0-F"
+ },
+ "ground_truth": {
+  "verified_aspect": "growth",
+  "growth_stage": "Stage 01- Early Growth",
+  "diseased": null,
+  "disease_name": null
+ },
+ "image": "lettuce_R2-M-F1_v1_Stage_01__Early_Growth_20230125_100744_jpg.rf.8c60baf45293d316c21e576da4e9cd3a_aug33_contrast_up.jpg",
+ "trajectory": [
+  {
+   "visit": 1,
+   "growth_stage": "Stage 01- Early Growth",
+   "image": "lettuce_R2-M-F1_v1_Stage_01__Early_Growth_20230125_100744_jpg.rf.8c60baf45293d316c21e576da4e9cd3a_aug33_contrast_up.jpg"
+  },
+  {
+   "visit": 2,
+   "growth_stage": "stage 02- Leafy growth",
+   "image": "lettuce_R2-M-F1_v2_stage_02__Leafy_growth_20230130_094515_jpg.rf.989d624e6f168fae0659c8bfc0b7dc48.jpg"
+  },
+  {
+   "visit": 3,
+   "growth_stage": "stage 03- Head formation",
+   "image": "lettuce_R2-M-F1_v3_stage_03__Head_formation_IMG_20230227_091751_jpg.rf.895fc991edfc2ba1c07372059557fbcb.jpg"
+  },
+  {
+   "visit": 4,
+   "growth_stage": "stage 04- Harvest stage",
+   "image": "lettuce_R2-M-F1_v4_stage_04__Harvest_stage_20230109_093753_jpg.rf.8a0ce7b84f15324d434820aba51182bb_aug37_bright_up.jpg"
+  },
+  {
+   "visit": 5,
+   "growth_stage": "stage 04- Harvest stage",
+   "image": "lettuce_R2-M-F1_v5_stage_04__Harvest_stage_20230109_092648_jpg.rf.e7db4bd7654a538ef2dcc0f38f03e597_aug1_bright_up.jpg"
+  }
+ ]
+}

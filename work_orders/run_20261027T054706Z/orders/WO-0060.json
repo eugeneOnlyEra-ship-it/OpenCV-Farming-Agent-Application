@@ -1,0 +1,227 @@
+{
+  "order_id": "WO-0060",
+  "task": "VERIFY",
+  "role": "camera",
+  "agent": "camera_front",
+  "pod_id": "R2-M-F1",
+  "crop_type": "lettuce",
+  "trough_id": "R2-M-F",
+  "side": "front",
+  "location": "rail 2 \u00b7 trough R2-M-F \u00b7 front",
+  "priority": 3,
+  "title": "Verify treatment on R2-M-F1",
+  "rationale": "Treatment WO-0059 finished: re-inspect in 8 s (auto mode, demo timing) to confirm it worked.",
+  "evidence": {
+    "visit": 13,
+    "step": 3,
+    "n_steps": 4,
+    "image": "/home/ugeonlyera/Downloads/OpenCV-Farming-Agent-Lambda-Offline-WorkOrders-Calibration-Output-Fix(1)/OpenCV-Farming-Agent-Application/pybullet_sim/pods/R2-M-F1/lettuce_R2-M-F1_v4_stage_04__Harvest_stage_20230109_093753_jpg.rf.8a0ce7b84f15324d434820aba51182bb_aug37_bright_up.jpg",
+    "image_size": [
+      420,
+      420
+    ],
+    "growth_stage": "stage 04- Harvest stage",
+    "growth_confidence": 0.985,
+    "disease_flag": true,
+    "disease_name": "Viral",
+    "disease_confidence": 0.501,
+    "n_disease_detections": 2,
+    "n_growth_detections": 2,
+    "action": "flag_for_treatment",
+    "reason": "Viral detected at 0.50 confidence",
+    "trend": "stage advanced: stage 03- Head formation -> stage 04- Harvest stage; disease newly flagged",
+    "cycle": {
+      "age": 12,
+      "harvest_age": 12,
+      "stage": "stage 04- Harvest stage",
+      "waiting_for_harvest": true,
+      "cycle": 1,
+      "stage_visit": 0
+    },
+    "model_sensitivity": 0.25,
+    "scan_time": "2026-10-27T06:09:25+00:00",
+    "rail": 2
+  },
+  "targets": [
+    {
+      "class": "Viral",
+      "confidence": 0.501,
+      "box_norm": [
+        0.0002,
+        0.9229,
+        0.1336,
+        0.0766
+      ],
+      "center_norm": [
+        0.067,
+        0.9613
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "action": "NAVIGATE",
+      "text": "Move the camera agent to R2-M-F and align with pod R2-M-F1.",
+      "params": {
+        "trough": "R2-M-F",
+        "pod": "R2-M-F1",
+        "side": "front",
+        "rail": 2
+      }
+    },
+    {
+      "seq": 2,
+      "action": "CAPTURE",
+      "text": "Close-up of the treated area / target regions for this pod.",
+      "params": {
+        "frames": 3
+      }
+    },
+    {
+      "seq": 3,
+      "action": "UPLOAD",
+      "text": "Send frames to the vision pipeline tagged with this order id.",
+      "params": {}
+    },
+    {
+      "seq": 4,
+      "action": "COMPARE",
+      "text": "Pipeline compares the new disease reading with the visit that triggered treatment; if it is still above threshold the case is escalated to a human.",
+      "params": {}
+    }
+  ],
+  "requires_approval": false,
+  "approval_note": "",
+  "human_notes": [],
+  "status": "completed",
+  "progress": 4,
+  "occurrences": 1,
+  "stale": false,
+  "follow_up_of": "WO-0059",
+  "not_before": "2026-10-27T06:10:05+00:00",
+  "created": "2026-10-27T06:09:57+00:00",
+  "updated": "2026-10-27T06:10:25+00:00",
+  "history": [
+    [
+      "2026-10-27T06:09:57+00:00",
+      "scheduled",
+      "due 2026-10-27T06:10:05+00:00 (auto mode releases it)"
+    ],
+    [
+      "2026-10-27T06:10:05+00:00",
+      "approved",
+      "approved by auto mode (follow-up due)"
+    ],
+    [
+      "2026-10-27T06:10:05+00:00",
+      "dispatched",
+      "sent to camera_front"
+    ],
+    [
+      "2026-10-27T06:10:07+00:00",
+      "in_progress",
+      "pybullet_gantry started"
+    ],
+    [
+      "2026-10-27T06:10:23+00:00",
+      "completed",
+      "executed by PyBullet gantry"
+    ],
+    [
+      "2026-10-27T06:10:25+00:00",
+      "completed",
+      "loop closed: Treatment verified: disease reading 0.50 -> 0.79 (2 -> 2 boxes), below the action threshold"
+    ]
+  ],
+  "ai": {},
+  "outcome": {
+    "result": "treatment_worked",
+    "headline": "Treatment verified: disease reading 0.50 -> 0.79 (2 -> 2 boxes), below the action threshold",
+    "before": {
+      "growth_stage": "stage 04- Harvest stage",
+      "growth_confidence": 0.985,
+      "disease_flag": true,
+      "disease_name": "Viral",
+      "disease_confidence": 0.501,
+      "n_disease_detections": 2,
+      "action": "flag_for_treatment"
+    },
+    "after": {
+      "growth_stage": "stage 04- Harvest stage",
+      "growth_confidence": 0.985,
+      "disease_flag": false,
+      "disease_name": null,
+      "disease_confidence": 0.79,
+      "n_disease_detections": 2,
+      "action": "flag_for_harvest"
+    },
+    "after_boxes": [
+      {
+        "class": "healthy",
+        "confidence": 0.79,
+        "box_norm": [
+          0.2351,
+          0.4153,
+          0.6712,
+          0.2943
+        ],
+        "center_norm": [
+          0.5707,
+          0.5624
+        ]
+      },
+      {
+        "class": "healthy",
+        "confidence": 0.34,
+        "box_norm": [
+          0.0,
+          0.3505,
+          0.1424,
+          0.3825
+        ],
+        "center_norm": [
+          0.0712,
+          0.5418
+        ]
+      },
+      {
+        "class": "stage 04- Harvest stage",
+        "confidence": 0.985,
+        "box_norm": [
+          0.1986,
+          0.3467,
+          0.7731,
+          0.4316
+        ],
+        "center_norm": [
+          0.5852,
+          0.5625
+        ]
+      },
+      {
+        "class": "stage 04- Harvest stage",
+        "confidence": 0.654,
+        "box_norm": [
+          0.0009,
+          0.2605,
+          0.1477,
+          0.5408
+        ],
+        "center_norm": [
+          0.0747,
+          0.5309
+        ]
+      }
+    ],
+    "after_size": [
+      420,
+      420
+    ],
+    "frame": "work_orders/run_20261027T054706Z/frames/WO-0060_after.jpg",
+    "frame_note": "SIMULATED post-treatment: 1 targeted region(s) inpainted (tissue removed)",
+    "simulated": true,
+    "next_order": ""
+  },
+  "aspect": "disease"
+}

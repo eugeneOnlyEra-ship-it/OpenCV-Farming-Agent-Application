@@ -34,7 +34,7 @@ mushroom *disease*-dataset photos with growth_stage left unverified,
 because no real mushroom growth-stage source images were available.
 That dataset (mushroom-growth-stages-2vmfq, Roboflow) was supplied
 later and all 12 now use real growth-stage-verified photos, same as
-cabbage and lettuce -- see pods_manifest.json.
+cabbage and lettuce -- see each pod's pod.json.
 
 Every front pod also carries a full growth-stage TRAJECTORY -- real
 photos for every stage from wherever it started through to harvest,
@@ -48,10 +48,10 @@ produce fails loudly instead of silently logging a ground truth
 nothing backs up.
 """
 
-import json
 import os
 
 from perception import MODEL_REGISTRY
+from pybullet_sim import pod_data
 
 STATION_RAILS = [1, 2, 3]        # physical grouping only -- no rig geometry here
 STATIONS_PER_RAIL = 3            # left / middle / right
@@ -59,8 +59,12 @@ STATION_LABELS = ("L", "M", "R")
 SIDES = ("front", "back")
 PODS_PER_SIDE = 4                # pods sharing one physical trough
 
-IMAGE_DIR = os.path.join(os.path.dirname(__file__), "sample_images")
-MANIFEST_PATH = os.path.join(os.path.dirname(__file__), "pods_manifest.json")
+# Every pod's data set (its real photos + pod.json) lives in its own folder inside the PyBullet simulation:
+#     pybullet_sim/pods/<POD_ID>/      (see pybullet_sim/pod_data.py)
+# The folder name is the number printed on the pod's tag in the simulation, so the robot's camera can go from
+# "the tag I just read" straight to "this pod's data". This registry is built from those folders -- there is no
+# separate manifest or image directory any more.
+IMAGE_DIR = pod_data.POD_DATA_DIR      # kept under its old name for main.py; photos are per-pod subfolders of it
 
 
 def trough_id(rail, station, side):
@@ -87,8 +91,9 @@ def _validate_manifest(entries):
 
 
 def build_pod_registry():
-    with open(MANIFEST_PATH) as f:
-        entries = json.load(f)
+    entries = pod_data.load_all()          # one pod.json per folder, in the application's queue order
+    if not entries:
+        raise FileNotFoundError(f"No pod folders found in {pod_data.POD_DATA_DIR} -- see pybullet_sim/pod_data.py")
     _validate_manifest(entries)
 
     pods = []
@@ -106,7 +111,7 @@ def build_pod_registry():
                 )
                 trajectory.append({
                     "growth_stage": step["growth_stage"],
-                    "image_path": os.path.join(IMAGE_DIR, step["image"]),
+                    "image_path": os.path.join(e["folder"], step["image"]),
                 })
 
         pods.append({
@@ -118,7 +123,8 @@ def build_pod_registry():
             "trough_id": trough_id(rail, station, side),
             "crop_type": e["crop_type"],
             "ground_truth": e["ground_truth"],
-            "image_path": os.path.join(IMAGE_DIR, e["image"]),
+            "image_path": os.path.join(e["folder"], e["image"]),
+            "folder": e["folder"],             # this pod's data folder (also the number on its tag in the simulation)
             "trajectory": trajectory,  # None for back (disease-verified) pods
         })
     return pods

@@ -1,0 +1,26 @@
+{
+ "pod_id": "R1-L-B4",
+ "tag": "R1-L-B4",
+ "index": 7,
+ "crop_type": "cabbage",
+ "rail": 1,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 4,
+ "trough_id": "R1-L-B",
+ "sim_location": {
+  "row": 0,
+  "col": 0,
+  "layer": 3,
+  "side": "back",
+  "sim_pod_id": "R0C0-L3-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Cabbage-Black_rot"
+ },
+ "image": "cabbage_disease_Cabbage_Black_rot_R1-L-B4.jpg"
+}

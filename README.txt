@@ -46,8 +46,10 @@ What changed compared with v7_1
    a) THE CALIBRATION: press [Calibrate camera pair] (or just press Start the first time -- see below). A separate
       process holds a chessboard in front of the two lenses at 20 poses in a scratch PyBullet world. For every pose
       you see both cameras' frames with the detected chessboard corners, whether both cameras found the board,
-      and, from the 6th usable pair on, cv2.calibrateMultiviewExtended re-solved after EVERY new pair: reprojection
-      error, baseline, rotation -- the baseline chart converges towards the designed 40 mm. The result is saved to
+      and, from the 6th usable pair on, the available OpenCV stereo solver is re-solved after EVERY new pair:
+      OpenCV 5's calibrateMultiviewExtended when available, otherwise OpenCV 4's calibrateCamera + stereoCalibrate.
+      Reprojection error, baseline and rotation are shown; the baseline chart converges towards the designed 40 mm.
+      Invalid, stale or poor-quality saved calibrations are rejected so the robot falls back to one camera. The result is saved to
       logs/stereo_rig_calibration.json, the frames to logs/calibration_frames/.
    b) THE PODS, during a run: for every pod a camera agent localizes, the tab shows both cameras' frames (cycling
       through the three views, tag outlined), whether each camera found the tag, each camera's own pod-position

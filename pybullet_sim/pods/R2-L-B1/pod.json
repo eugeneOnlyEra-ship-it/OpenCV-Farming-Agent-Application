@@ -1,0 +1,26 @@
+{
+ "pod_id": "R2-L-B1",
+ "tag": "R2-L-B1",
+ "index": 28,
+ "crop_type": "cabbage",
+ "rail": 2,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 1,
+ "trough_id": "R2-L-B",
+ "sim_location": {
+  "row": 1,
+  "col": 0,
+  "layer": 0,
+  "side": "back",
+  "sim_pod_id": "R1C0-L0-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Cabbage-Downy_mildew"
+ },
+ "image": "cabbage_disease_Cabbage_Downy_mildew_R2-L-B1.jpg"
+}

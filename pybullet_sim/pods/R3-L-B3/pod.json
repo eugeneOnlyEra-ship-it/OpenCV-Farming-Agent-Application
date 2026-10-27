@@ -1,0 +1,26 @@
+{
+ "pod_id": "R3-L-B3",
+ "tag": "R3-L-B3",
+ "index": 54,
+ "crop_type": "cabbage",
+ "rail": 3,
+ "station": 0,
+ "station_letter": "L",
+ "side": "back",
+ "slot": 3,
+ "trough_id": "R3-L-B",
+ "sim_location": {
+  "row": 2,
+  "col": 0,
+  "layer": 2,
+  "side": "back",
+  "sim_pod_id": "R2C0-L2-B"
+ },
+ "ground_truth": {
+  "verified_aspect": "disease",
+  "growth_stage": null,
+  "diseased": true,
+  "disease_name": "Cabbage-Alternaria_leaf_spot"
+ },
+ "image": "cabbage_disease_Cabbage_Alternaria_leaf_spot_R3-L-B3.jpg"
+}
