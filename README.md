@@ -1,6 +1,6 @@
 # OpenCV Farming Agent — Integrated Application + PyBullet Gantry
 
-This folder combines the OpenCV/ONNX farming application with the PyBullet gantry robot simulation. **Run the integrated application with `python3 app_ui.py`.** The `PyBullet robots` checkbox in the toolbar enables/disables the physical simulation layer.
+This folder combines the OpenCV/ONNX farming application with the PyBullet gantry robot simulation. **Run the integrated application with `python3 app_ui.py`.** The `PyBullet robots` checkbox in the toolbar enables/disables the physical simulation layer. The application also uses pybind11 in the cpp folder to provide bindings for C++ handling image collection in various operations that is later on handed over to python for processing and analysis.
 
 ## Multi-view pod localization (single camera agent)
 
