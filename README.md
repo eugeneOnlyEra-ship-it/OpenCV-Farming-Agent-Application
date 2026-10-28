@@ -71,8 +71,7 @@ For each of 72 pods, every visit:
    runs the real `classify_pod()` (two YOLOv8-ONNX models per crop via
    `cv2.dnn`, see `perception.py`) and `decide_action()` (see
    `agent.py`) on a background thread, simulating the async
-   S3 → Lambda → DynamoDB round-trip from the AWS architecture, without
-   needing real AWS.
+   S3 → Lambda → DynamoDB round-trip from the AWS architecture.
 3. **Track history** — the result is written to a persistent per-pod
    history table (`dynamo_client.py`) and compared against that pod's
    prior visits for a trend note (`trend.py`).
